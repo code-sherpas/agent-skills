@@ -9,7 +9,7 @@ description: Update agent skills installed with the `skills` CLI. Use when asked
 
 Refresh installed agent skills with the standard `skills` CLI workflow.
 
-Use the normal update command first. If the skills were installed with project scope and the CLI does not detect upstream changes, reinstall the affected skills explicitly from their recorded source.
+Use the normal update command first. If the skills were installed with project scope and the CLI does not detect upstream changes, reinstall each tracked project skill explicitly from its recorded source.
 
 ## Detect the Installation Scope
 
@@ -31,25 +31,37 @@ npx skills update
 
 2. If the requested skill is updated, stop there.
 
-3. If the CLI reports that all skills are up to date but a project-scoped skill is still stale, use the fallback flow below.
+3. If the CLI reports that all skills are up to date but the project-scoped skills are still stale, use the fallback flow below.
 
 ## Fallback Flow for Project-Scoped Skills
 
 1. Open `skills-lock.json`.
-2. Identify the affected skill name and its `source`.
-3. Reinstall that skill explicitly:
+2. Treat `skills-lock.json` as the source of truth for tracked skills.
+3. Cross-check it against `.agents/skills/` and only keep skills that are both:
+   - listed in `skills-lock.json`
+   - present in `.agents/skills/`
+4. For each matching skill, read its `source` and reinstall it explicitly:
 
 ```bash
 npx skills add [repository] --skill [skill]
 ```
 
-4. Repeat for each affected skill instead of reinstalling unrelated skills blindly.
+5. Repeat that command for every matching skill. Do not stop after the first one, and do not guess missing repositories manually.
+
+Example loop:
+
+```text
+for each skill in skills-lock.json that also exists in .agents/skills:
+  npx skills add [repository] --skill [skill]
+```
 
 Example:
 
 ```bash
 npx skills add https://github.com/github/awesome-copilot --skill git-commit
 ```
+
+6. If the `sourceType` is `github` and the `source` is recorded as `owner/repo` such as `github/awesome-copilot`, convert it to the repository form expected by the CLI, for example `https://github.com/owner/repo`.
 
 ## Interactive Choices
 
@@ -65,7 +77,7 @@ Before finishing:
 
 1. Confirm the target skill directory now contains the updated skill content.
 2. Confirm the refreshed skill still matches the source and the expected skill name.
-3. Call out if the standard update command did not detect a change and the explicit reinstall was required.
+3. Call out if the standard update command did not detect a change and the explicit reinstall loop was required.
 
 ## Report the Outcome
 
