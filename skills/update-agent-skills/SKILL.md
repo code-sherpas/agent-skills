@@ -1,6 +1,6 @@
 ---
 name: update-agent-skills
-description: Update agent skills installed with the `skills` CLI. Use when asked to refresh installed skills, keep a project's skills current, or troubleshoot cases where `npx skills update` reports that everything is up to date. For project-scoped installs, a no-change update must be followed by reinstalling each tracked skill from `skills-lock.json` one by one.
+description: Update agent skills installed with the `skills` CLI. Use when asked to refresh installed skills, keep a project's skills current, or troubleshoot cases where `npx skills update` reports that everything is up to date. For project-scoped installs, a no-change update must immediately run the bundled reinstall script so tracked skills from `skills-lock.json` are reinstalled without extra investigation.
 ---
 
 # Update Agent Skills
@@ -12,6 +12,7 @@ Refresh installed agent skills with the standard `skills` CLI workflow.
 Use the normal update command first. If the skills were installed with project scope and the CLI does not detect upstream changes, reinstall each tracked project skill explicitly from its recorded source.
 
 For project-scoped installs, treat a no-change `npx skills update` result as a mandatory fallback trigger. Do not wait for separate proof that a specific skill is stale.
+Prefer the bundled reinstall script over manual command discovery. It already knows how to read `skills-lock.json`, filter to installed project skills, batch by repository, and pass non-interactive flags.
 
 ## Detect the Installation Scope
 
@@ -38,6 +39,7 @@ npx skills update
    - If the install is project-scoped and the command reports `All skills are up to date`, or otherwise makes no tracked-skill changes, go directly to the fallback flow below.
 
 3. Do not use a presence check in the installed project skill directories to decide whether the fallback is needed. Presence only tells you which tracked skills exist locally and therefore must be reinstalled.
+4. Do not pause to inspect `npx skills add --help`, read the CLI source, or rediscover flags unless the bundled script fails. That investigation slows the task down and is unnecessary for the normal fallback path.
 
 ## Fallback Flow for Project-Scoped Skills
 
@@ -46,35 +48,42 @@ npx skills update
 3. Cross-check it against the installed project skill directories and only keep skills that are both:
    - listed in `skills-lock.json`
    - present in at least one supported directory such as `.agents/skills/`, `.claude/skills/`, or `.augment/skills/`
-4. Prefer the bundled script for the reinstall loop:
+4. Prefer the bundled script for the reinstall loop and run it immediately after a no-op project-scoped update:
 
 ```bash
 scripts/reinstall_project_skills_from_lock.sh --project-root .
 ```
 
-5. If you do not use the script, and `npx skills update` was a no-op for a project-scoped install, reinstall every matching skill manually. Do not stop after inspecting just one skill, and do not conclude success merely because the directories are present.
-6. For each matching skill, read its `source` and reinstall it explicitly:
+5. The script is the fast path because it batches skills that share a repository and uses `-y` to avoid interactive prompts.
+6. If you do not use the script, and `npx skills update` was a no-op for a project-scoped install, reinstall every matching skill manually. Do not stop after inspecting just one skill, and do not conclude success merely because the directories are present.
+7. For each matching skill or skill group that shares a repository, read its `source` and reinstall it explicitly.
 
 ```bash
 npx skills add [repository] --skill [skill]
 ```
 
-7. Repeat that command for every matching skill. Do not stop after the first one, and do not guess missing repositories manually.
+8. Prefer the non-interactive form when reinstalling manually:
+
+```bash
+npx skills add [repository] --skill [skill1] [skill2] ... -y
+```
+
+9. Repeat that command for every matching repository or skill. Do not stop after the first one, and do not guess missing repositories manually.
 
 Example loop:
 
 ```text
-for each skill in skills-lock.json that also exists in an installed project skill directory:
-  npx skills add [repository] --skill [skill]
+group tracked installed skills by repository:
+  npx skills add [repository] --skill [skill1] [skill2] ... -y
 ```
 
 Example:
 
 ```bash
-npx skills add https://github.com/github/awesome-copilot --skill git-commit
+npx skills add https://github.com/code-sherpas/agent-skills --skill atomic-design update-agent-skills write-persistence-representations -y
 ```
 
-8. If the `sourceType` is `github` and the `source` is recorded as `owner/repo` such as `github/awesome-copilot`, convert it to the repository form expected by the CLI, for example `https://github.com/owner/repo`.
+10. If the `sourceType` is `github` and the `source` is recorded as `owner/repo` such as `github/awesome-copilot`, convert it to the repository form expected by the CLI, for example `https://github.com/owner/repo`.
 
 ## Interactive Choices
 
@@ -92,6 +101,7 @@ Before finishing:
 2. Confirm the refreshed skill still matches the source and the expected skill name.
 3. If the install was project-scoped and `npx skills update` returned `All skills are up to date`, call out that this no-op result triggered the explicit reinstall loop.
 4. Do not report success based only on the fact that the skill directories already existed before the reinstall.
+5. If the bundled script was unavailable or failed and you had to fall back to manual commands, call that out explicitly.
 
 ## Report the Outcome
 

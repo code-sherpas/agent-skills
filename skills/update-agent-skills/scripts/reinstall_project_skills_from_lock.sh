@@ -54,6 +54,7 @@ const path = require('path');
 const [lockfile, ...skillDirs] = process.argv.slice(2);
 const lock = JSON.parse(fs.readFileSync(lockfile, 'utf8'));
 const skills = lock.skills && typeof lock.skills === 'object' ? lock.skills : {};
+const entries = [];
 
 for (const [name, meta] of Object.entries(skills)) {
   const installed = skillDirs.some((dir) =>
@@ -79,8 +80,14 @@ for (const [name, meta] of Object.entries(skills)) {
     continue;
   }
 
-  process.stdout.write(`${name}\t${source}\n`);
+  entries.push({ name, source });
 }
+
+entries
+  .sort((a, b) => a.source.localeCompare(b.source) || a.name.localeCompare(b.name))
+  .forEach(({ name, source }) => {
+    process.stdout.write(`${source}\t${name}\n`);
+  });
 NODE
 )
 
@@ -89,14 +96,49 @@ if [[ ${#entries[@]} -eq 0 ]]; then
   exit 0
 fi
 
-for entry in "${entries[@]}"; do
-  IFS=$'\t' read -r skill source <<< "$entry"
+run_group() {
+  local source="$1"
+  shift
+  local skills=("$@")
+  local skill_name=""
+
+  if [[ ${#skills[@]} -eq 0 ]]; then
+    return
+  fi
 
   if [[ $dry_run -eq 1 ]]; then
-    printf 'npx skills add %q --skill %q\n' "$source" "$skill"
+    printf 'npx skills add %q --skill' "$source"
+    for skill_name in "${skills[@]}"; do
+      printf ' %q' "$skill_name"
+    done
+    printf ' -y\n'
+    return
+  fi
+
+  echo "Reinstalling ${skills[*]} from $source" >&2
+  npx skills add "$source" --skill "${skills[@]}" -y
+}
+
+current_source=""
+current_skills=()
+
+for entry in "${entries[@]}"; do
+  IFS=$'\t' read -r source skill <<< "$entry"
+
+  if [[ -z "$current_source" ]]; then
+    current_source="$source"
+    current_skills=("$skill")
     continue
   fi
 
-  echo "Reinstalling $skill from $source" >&2
-  npx skills add "$source" --skill "$skill"
+  if [[ "$source" == "$current_source" ]]; then
+    current_skills+=("$skill")
+    continue
+  fi
+
+  run_group "$current_source" "${current_skills[@]}"
+  current_source="$source"
+  current_skills=("$skill")
 done
+
+run_group "$current_source" "${current_skills[@]}"
