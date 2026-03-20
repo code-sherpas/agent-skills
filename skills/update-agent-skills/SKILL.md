@@ -48,27 +48,36 @@ npx skills update
 3. Cross-check it against the installed project skill directories and only keep skills that are both:
    - listed in `skills-lock.json`
    - present in at least one supported directory such as `.agents/skills/`, `.claude/skills/`, or `.augment/skills/`
-4. Prefer the bundled script for the reinstall loop and run it immediately after a no-op project-scoped update:
+4. The bundled script lives inside the installed `update-agent-skills` skill directory, not in the user's project `scripts/` folder.
+5. Prefer the bundled script for the reinstall loop and run it immediately after a no-op project-scoped update. Resolve it from the installed skill path first:
 
 ```bash
-scripts/reinstall_project_skills_from_lock.sh --project-root .
+for dir in .agents/skills .claude/skills .augment/skills; do
+  candidate="$dir/update-agent-skills/scripts/reinstall_project_skills_from_lock.sh"
+  if [ -x "$candidate" ]; then
+    "$candidate" --project-root .
+    break
+  fi
+done
 ```
 
-5. The script is the fast path because it batches skills that share a repository and uses `-y` to avoid interactive prompts.
-6. If you do not use the script, and `npx skills update` was a no-op for a project-scoped install, reinstall every matching skill manually. Do not stop after inspecting just one skill, and do not conclude success merely because the directories are present.
-7. For each matching skill or skill group that shares a repository, read its `source` and reinstall it explicitly.
+6. If the script is installed under `.agents/skills/update-agent-skills/`, prefer calling that path directly instead of searching the whole workspace.
+7. If the script is not present in those standard installed skill paths, fall back to the manual grouped reinstall flow immediately. Do not use broad `find` or `rg` searches across the workspace just to rediscover the same script.
+8. The script is the fast path because it batches skills that share a repository and uses `-y` to avoid interactive prompts.
+9. If you do not use the script, and `npx skills update` was a no-op for a project-scoped install, reinstall every matching skill manually. Do not stop after inspecting just one skill, and do not conclude success merely because the directories are present.
+10. For each matching skill or skill group that shares a repository, read its `source` and reinstall it explicitly.
 
 ```bash
 npx skills add [repository] --skill [skill]
 ```
 
-8. Prefer the non-interactive form when reinstalling manually:
+11. Prefer the non-interactive form when reinstalling manually:
 
 ```bash
 npx skills add [repository] --skill [skill1] [skill2] ... -y
 ```
 
-9. Repeat that command for every matching repository or skill. Do not stop after the first one, and do not guess missing repositories manually.
+12. Repeat that command for every matching repository or skill. Do not stop after the first one, and do not guess missing repositories manually.
 
 Example loop:
 
@@ -83,7 +92,7 @@ Example:
 npx skills add https://github.com/code-sherpas/agent-skills --skill atomic-design update-agent-skills write-persistence-representations -y
 ```
 
-10. If the `sourceType` is `github` and the `source` is recorded as `owner/repo` such as `github/awesome-copilot`, convert it to the repository form expected by the CLI, for example `https://github.com/owner/repo`.
+13. If the `sourceType` is `github` and the `source` is recorded as `owner/repo` such as `github/awesome-copilot`, convert it to the repository form expected by the CLI, for example `https://github.com/owner/repo`.
 
 ## Interactive Choices
 
