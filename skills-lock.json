@@ -5,6 +5,11 @@
       "source": "upstash/context7",
       "sourceType": "github",
       "computedHash": "b631499b08026841fe535f17927d692fc37d29111032ee1991e55ecec1f937be"
+    },
+    "git-commit": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "2607fc60629b82b257136dd2a7a373f0a4466c0b49df7746d845d59313c99b21"
     }
   }
 }
