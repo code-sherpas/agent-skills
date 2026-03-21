@@ -1,6 +1,6 @@
 ---
 name: domain-entity
-description: Identify, interpret, review, or write domain entities in code. Use when an agent needs to decide whether a domain object is defined by a stable identity that persists over time, or when it must implement, preserve, or refactor entity lifecycle, invariants, and behavior around domain data. When writing or changing a domain entity, prefer a class or the closest class-like construct the project stack supports.
+description: Identify, interpret, review, or write domain entities in code. Use when an agent needs to decide whether a domain entity is defined by a stable identity that persists over time, or when it must implement, preserve, or refactor entity lifecycle, invariants, and behavior around domain data. When writing or changing a domain entity, prefer a class or the closest class-like construct the project stack supports.
 ---
 
 # Domain Entity
