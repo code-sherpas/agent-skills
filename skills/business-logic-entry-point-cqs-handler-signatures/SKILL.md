@@ -26,7 +26,7 @@ Examples:
 - `createReservationCommandHandler`
 - `approveOrderCommandHandler`
 - `findReservationByIdQueryHandler`
-- `listAvailableCarsQueryHandler`
+- `searchAvailableCarsQueryHandler`
 - `create_reservation_command_handler`
 - `approve_order_command_handler`
 
@@ -148,13 +148,124 @@ type FindOrderByIdQuery = {
 }
 
 type FindOrderByIdQueryHandlerSuccess = {
-  order: OrderView
+  order: Order
 }
 
 const findOrderByIdQueryHandler = (
   query: FindOrderByIdQuery,
 ): Promise<FindOrderByIdQueryHandlerSuccess> => {
   // ...
+}
+```
+
+### Query Handlers with Filtering, Pagination, and Sorting
+
+A query handler may support filtering, pagination, and sorting when the business-logic entry point requires searching for a collection of domain entities. In that case:
+
+- The `...Query` type includes a list of filter clauses, pagination parameters, and a list of sort clauses as explicit fields.
+- The `...QueryHandlerSuccess` type includes the collection of domain entities and the total count of matching entities so the caller can compute the total number of pages.
+
+Express filter criteria as a list of filter clauses, each referencing an attribute of the domain entity, a comparison operator, and a value. This allows a single search query handler per domain entity that accepts any combination of filters, instead of requiring a separate handler for each filter combination. Pagination is expressed as page number and page size. Sorting is a list of sort clauses, each with an attribute name and a direction (ascending or descending), supporting multi-attribute sorting.
+
+Example:
+
+```ts
+type SortDirection = 'asc' | 'desc'
+
+type SortClause<T> = {
+  attribute: keyof T
+  direction: SortDirection
+}
+
+type FilterOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'
+
+type FilterClause<T> = {
+  attribute: keyof T
+  operator: FilterOperator
+  value: unknown
+}
+
+type SearchOrdersQuery = {
+  filters: FilterClause<Order>[]
+  pageNumber: number
+  pageSize: number
+  sortBy: SortClause<Order>[]
+}
+
+type SearchOrdersQueryHandlerSuccess = {
+  orders: Order[]
+  totalCount: number
+}
+
+const searchOrdersQueryHandler = (
+  query: SearchOrdersQuery,
+): Promise<SearchOrdersQueryHandlerSuccess> => {
+  // ...
+}
+```
+
+```py
+@dataclass(frozen=True)
+class SortClause(Generic[T]):
+    attribute: str
+    direction: Literal["asc", "desc"]
+
+@dataclass(frozen=True)
+class FilterClause(Generic[T]):
+    attribute: str
+    operator: Literal["eq", "neq", "gt", "gte", "lt", "lte", "contains"]
+    value: object
+
+@dataclass(frozen=True)
+class SearchOrdersQuery:
+    filters: list[FilterClause[Order]]
+    page_number: int
+    page_size: int
+    sort_by: list[SortClause[Order]]
+
+@dataclass(frozen=True)
+class SearchOrdersQueryHandlerSuccess:
+    orders: list[Order]
+    total_count: int
+
+def search_orders_query_handler(
+    query: SearchOrdersQuery,
+) -> SearchOrdersQueryHandlerSuccess:
+    ...
+```
+
+```kt
+enum class SortDirection { ASC, DESC }
+
+data class SortClause<T>(
+    val attribute: String,
+    val direction: SortDirection,
+)
+
+enum class FilterOperator { EQ, NEQ, GT, GTE, LT, LTE, CONTAINS }
+
+data class FilterClause<T>(
+    val attribute: String,
+    val operator: FilterOperator,
+    val value: Any,
+)
+
+data class SearchOrdersQuery(
+    val filters: List<FilterClause<Order>>,
+    val pageNumber: Int,
+    val pageSize: Int,
+    val sortBy: List<SortClause<Order>>,
+)
+
+data class SearchOrdersQueryHandlerSuccess(
+    val orders: List<Order>,
+    val totalCount: Int,
+)
+
+fun searchOrdersQueryHandler(
+    query: SearchOrdersQuery,
+): SearchOrdersQueryHandlerSuccess {
+    // ...
 }
 ```
 
@@ -239,6 +350,8 @@ When reading or reviewing code, ask:
 - Does success use the correct shape for its role under CQS?
 - If this is a non-create command handler, does it return the project's empty equivalent directly?
 - If this is a create command handler, does it return `...CommandHandlerSuccess` with only created IDs?
+- If this is a search query handler, does the `...Query` type include filter clauses, pagination parameters, and sort clauses as explicit fields?
+- If this is a search query handler, does the `...QueryHandlerSuccess` type include both the collection and the total count?
 
 If the answer is yes, apply this skill.
 
