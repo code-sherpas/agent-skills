@@ -1,17 +1,19 @@
 ---
 name: business-logic-entry-point-database-transaction
-description: Require every business-logic entry point to wrap its entire flow in a database transaction using the project's library, framework, or ORM. Use when an agent needs to create, modify, review, or interpret business-logic entry points that interact with a database. The transaction must encompass the full entry-point flow, including business constraints, business operations, and persistence, so that the entire flow succeeds or fails atomically.
+description: Require every business-logic entry point to wrap its entire flow in a database transaction using the project's library, framework, or ORM, when the underlying persistence technology supports transactions. Use when an agent needs to create, modify, review, or interpret business-logic entry points that interact with a database. The transaction must encompass the full entry-point flow, including business constraints, business operations, and persistence, so that the entire flow succeeds or fails atomically.
 ---
 
 # Database Transaction for Business Logic Entry Points
 
 ## Goal
 
-Every business-logic entry point that interacts with a database must wrap its entire flow in a single database transaction.
+Every business-logic entry point that interacts with a database must wrap its entire flow in a single database transaction, when the underlying persistence technology supports transactions.
 
 Use the project's existing library, framework, or ORM to open and manage the transaction. Do not introduce a custom transaction mechanism when the project stack already provides one.
 
 The transaction must encompass the full entry-point flow: business constraints, business rules, business operations, and persistence. The entire flow succeeds or fails atomically.
+
+If the persistence technology does not support transactions (e.g., some NoSQL databases, object stores, or file-based storage), this skill does not apply.
 
 ## What Counts as In Scope
 

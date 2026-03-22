@@ -1,24 +1,27 @@
 ---
 name: business-logic-entry-point-transaction-isolation-levels
-description: Set transaction isolation levels for business-logic entry points when Command-Query Separation and database transactions are both in use. Use when an agent needs to create, modify, review, or interpret the isolation level of a database transaction at a business-logic entry point that follows CQS. Query handlers must use the least blocking isolation level available in the project's database. Command handlers must use REPEATABLE READ isolation level.
+description: Set transaction isolation levels for business-logic entry points when Command-Query Separation and database transactions are both in use and the underlying persistence technology supports configurable isolation levels. Use when an agent needs to create, modify, review, or interpret the isolation level of a database transaction at a business-logic entry point that follows CQS. Query handlers must use the least blocking isolation level available in the project's database. Command handlers must use REPEATABLE READ isolation level.
 ---
 
 # Transaction Isolation Levels for Business Logic Entry Points
 
 ## Goal
 
-When a business-logic entry point wraps its flow in a database transaction and follows Command-Query Separation, set the transaction isolation level based on whether the entry point is a command handler or a query handler.
+When a business-logic entry point wraps its flow in a database transaction and follows Command-Query Separation, set the transaction isolation level based on whether the entry point is a command handler or a query handler, when the underlying persistence technology supports configurable isolation levels.
 
 - Query handlers use the least blocking isolation level available in the project's database.
 - Command handlers use REPEATABLE READ.
 
+If the persistence technology does not support configurable isolation levels, this skill does not apply.
+
 ## When This Skill Applies
 
-This skill activates only when all three conditions are met:
+This skill activates only when all four conditions are met:
 
 1. The entry point is a business-logic entry point.
 2. The entry point wraps its flow in a database transaction.
-3. The entry point follows Command-Query Separation, so it is classified as either a command handler or a query handler.
+3. The underlying persistence technology supports configurable isolation levels.
+4. The entry point follows Command-Query Separation, so it is classified as either a command handler or a query handler.
 
 If any of these conditions is not met, this skill does not apply.
 
