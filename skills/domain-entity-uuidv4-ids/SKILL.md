@@ -11,7 +11,9 @@ Represent domain entity identifiers with UUIDv4.
 
 When the programming language or standard library provides a built-in UUID type, prefer that type for domain entity IDs. When no such built-in type exists, use `string` for domain entity IDs and keep UUIDv4 generation and validation explicit.
 
-Treat this skill as identity-format guidance for domain entities. The key question is whether the edited code defines, carries, validates, stores, serializes, or exposes the identifier of a domain entity.
+Treat this skill as identity-format guidance for domain entities. It determines the identifier format (UUIDv4) and the underlying type (built-in UUID or `string`). Whether to wrap that underlying type in a distinct type per domain entity — such as `OrderId` or `CustomerId` — is a separate concern handled by the `domain-entity-typed-ids` skill.
+
+The key question is whether the edited code defines, carries, validates, stores, serializes, or exposes the identifier of a domain entity.
 
 ## What Counts as In Scope
 
@@ -36,8 +38,9 @@ Apply this skill to code that does one or more of these things:
    - Do not fall back to `string` when a built-in UUID type exists.
 
 3. When no built-in UUID type exists, use `string`.
-   - Use `string` directly instead of introducing a custom ID type only to stand in for UUID.
+   - Use `string` as the underlying identifier type.
    - Keep generation, parsing, and validation explicit enough that UUIDv4 remains the enforced format.
+   - This rule determines the underlying type only. Whether to wrap it in a typed ID such as `OrderId` is determined by the `domain-entity-typed-ids` skill.
 
 ## Detection Workflow
 
@@ -66,7 +69,7 @@ Apply this skill to code that does one or more of these things:
 
 3. Use `string` when the language has no built-in UUID type.
    - Keep the UUIDv4 contract explicit at parsing, validation, serialization, and generation points.
-   - Do not introduce a custom surrogate type unless the task explicitly requires it.
+   - This determines the underlying type. Whether to wrap it in a typed ID is a separate concern.
 
 4. Preserve identity consistency end to end.
    - Verify that the same UUIDv4 value can move through constructors, domain methods, persistence mappings, serializers, and external contracts without losing meaning.
