@@ -1,6 +1,6 @@
 ---
 name: immutable-domain-entities
-description: Require the immutable design pattern for domain entities. Use when an agent needs to create, modify, review, or interpret domain entities and should preserve identity while expressing state changes through new immutable instances or the closest immutable class-like construct the project stack supports.
+description: Require the immutable design pattern for domain entities. Use when an agent needs to create, modify, review, or interpret domain entities and should preserve identity while expressing state changes through new immutable instances. Domain entities must be modeled as immutable classes, not as plain type aliases or interfaces paired with standalone functions.
 ---
 
 # Immutable Domain Entities
@@ -27,7 +27,8 @@ Apply this skill to code that does one or more of these things:
 ## Immutable Rule
 
 1. Model domain entities as immutable when the task writes or changes them.
-   - Prefer immutable classes or the closest immutable class-like construct the language and project conventions support.
+   - Use immutable classes or the closest immutable class-like construct the language supports.
+   - A plain type alias, interface, or record paired with standalone functions is not a class-like construct. Do not model an immutable domain entity that way.
    - Keep the entity's identity stable while returning a new entity instance for every valid state change.
 
 2. Do not mutate entity state in place.

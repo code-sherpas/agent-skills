@@ -1,6 +1,6 @@
 ---
 name: domain-entity
-description: Identify, interpret, review, or write domain entities in code. Use when an agent needs to decide whether a domain entity is defined by a stable identity that persists over time, or when it must implement, preserve, or refactor entity lifecycle, invariants, and behavior around domain data. When writing or changing a domain entity, prefer a class or the closest class-like construct the project stack supports.
+description: Identify, interpret, review, or write domain entities in code. Use when an agent needs to decide whether a domain entity is defined by a stable identity that persists over time, or when it must implement, preserve, or refactor entity lifecycle, invariants, and behavior around domain data. When writing or changing a domain entity, use a class or the closest class-like construct the project stack supports. Do not model domain entities as plain type aliases or interfaces paired with standalone functions.
 ---
 
 # Domain Entity
@@ -62,10 +62,11 @@ Domain entities often appear in code that answers questions such as:
    - Restate what makes the entity the same domain concept over time.
    - Keep identifiers and identity semantics explicit.
 
-2. Prefer a class or equivalent when the stack supports it.
-   - Use a class, or the closest class-like construct available in the language, when that construct can own identity, state, invariants, and domain behavior together.
-   - Follow the project's existing conventions for how such constructs are modeled.
-   - If the stack or enforced project style does not support this well, use the nearest equivalent that still keeps identity and behavior together.
+2. Use a class to co-locate identity, state, invariants, and behavior.
+   - Use a class, or the closest class-like construct available in the language, so that identity, state, invariants, and domain behavior live together in a single construct.
+   - A plain type alias, interface, or record paired with standalone functions is not a class-like construct. Do not model a domain entity that way.
+   - Follow the project's existing conventions for how classes are modeled.
+   - Only fall back to a non-class construct when the language has no class support at all, not merely because a functional style is common or preferred by convention.
 
 3. Keep behavior close to the entity.
    - Put state-changing domain operations on the entity when they belong to that entity's own rules.
