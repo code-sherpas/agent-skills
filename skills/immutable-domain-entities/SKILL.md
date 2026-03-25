@@ -69,7 +69,7 @@ Apply this skill to code that does one or more of these things:
 ## Writing or Changing Immutable Domain Entities
 
 1. Make construction explicit.
-   - Use constructors, factories, static creation methods, or equivalent project patterns that fully establish a valid immutable entity.
+   - Use constructors that fully establish a valid immutable entity.
    - Validate invariants at creation time.
 
 2. Return new instances for state changes.
