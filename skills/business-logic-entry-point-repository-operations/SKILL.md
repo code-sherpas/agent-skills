@@ -1,6 +1,6 @@
 ---
 name: business-logic-entry-point-repository-operations
-description: Require repository interfaces to expose a standard set of operations with specific signatures and naming conventions. Use when an agent needs to create, modify, review, or interpret repository interfaces used by business-logic entry points. Repositories must offer findById, create (returns created entity), update (returns updated entity), search (returns collection), and deleteById (returns nothing). Do not use a generic "save" operation — always distinguish between create and update explicitly.
+description: Require repository interfaces to expose a standard set of operations with specific signatures and naming conventions. Use when an agent needs to create, modify, review, or interpret repository interfaces used by business-logic entry points. Repositories must offer findById (fails when entity is absent — never returns null or optional), create (returns created entity), update (returns updated entity), search (returns collection), and deleteById (returns nothing). Do not use a generic "save" operation — always distinguish between create and update explicitly.
 ---
 
 # Repository Operations for Business Logic Entry Points
@@ -31,7 +31,7 @@ Retrieves a single domain entity by its identity.
 - Name: `findById` or the project's idiomatic equivalent (e.g., `find_by_id`).
 - Parameter: the entity's identity value.
 - Returns: the domain entity.
-- When the entity does not exist, use the project's error or absence convention (e.g., error type, exception, null, optional).
+- When the entity does not exist, fail. Use the project's idiomatic failure mechanism (e.g., throwing an exception, returning an error type such as `Result` or `ResultAsync`). Do not return `null`, `undefined`, `None`, or an optional type — the caller must not be responsible for handling absence with conditional checks.
 
 ### 2. create
 
@@ -92,7 +92,7 @@ Do not define a `save` operation on repositories.
    - Flag any repository that defines a `save`, `persist`, `upsert`, or similarly ambiguous method that conflates creation and update.
 
 3. Check each operation against the standard.
-   - Verify `findById` exists and returns a single domain entity.
+   - Verify `findById` exists, returns a single domain entity, and fails when the entity does not exist (does not return null, optional, or an absence value).
    - Verify `create` exists, accepts a domain entity, and returns the created entity.
    - Verify `update` exists, accepts a domain entity, and returns the updated entity.
    - Verify the `search` method accepts filter clauses, pagination parameters, and sort clauses.
@@ -270,7 +270,7 @@ When reading or reviewing code, ask:
 - Does `deleteById` return nothing?
 - Does the `search` method accept filter clauses, pagination parameters, and sort clauses?
 - Does the `search` method return a paginated result with both the collection and the total count?
-- Does `findById` return a single domain entity with proper absence handling?
+- Does `findById` return a single domain entity and fail when the entity does not exist? It must not return null, optional, or an absence value.
 
 If any repository operation violates these conventions, apply this skill.
 
