@@ -45,15 +45,54 @@ If any of these conditions is not met, this skill does not apply.
    - Use the exact isolation level name or constant that the project's database and library expect.
    - Map the conceptual levels (READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ) to the project's specific syntax.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, the transaction and its isolation level are passed as the optional second parameter of `runWithExecutionContext`. The isolation level rules remain the same — query handlers use the least blocking level, command handlers use REPEATABLE READ. `runWithExecutionContext` opens the transaction with the specified isolation level and stores it in the execution context. When a repository retrieves the transaction from the execution context and it is `undefined` or `null`, the repository must create a new standalone transaction for that operation.
+
 ## Examples
 
-TypeScript with a transaction wrapper:
+TypeScript with execution context:
 
 ```ts
 // Query handler — least blocking isolation level
-const findReservationByIdQueryHandler = (
+function findReservationByIdQueryHandler(
   query: FindReservationByIdQuery,
-): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> => {
+): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> {
+  return runWithExecutionContext(
+    () =>
+      ensureRequesterIsAuthenticated()
+        .andThen((requesterId) =>
+          findReservationById(query.reservationId)
+        ),
+    { transaction: { isolationLevel: "READ UNCOMMITTED" } },
+  )
+}
+
+// Command handler — REPEATABLE READ
+function createReservationCommandHandler(
+  command: CreateReservationCommand,
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
+  return runWithExecutionContext(
+    () =>
+      ensureRequesterIsAuthenticated()
+        .andThen((requesterId) =>
+          ensureAvailableCars(command.carClass)
+        )
+        .andThen(() =>
+          persistReservation(reservation)
+        ),
+    { transaction: { isolationLevel: "REPEATABLE READ" } },
+  )
+}
+```
+
+TypeScript with a transaction wrapper (explicit passing, for languages without execution context):
+
+```ts
+// Query handler — least blocking isolation level
+function findReservationByIdQueryHandler(
+  query: FindReservationByIdQuery,
+): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> {
   return withTransaction({ isolationLevel: 'READ UNCOMMITTED' }, (transaction) =>
     ensureRequesterIsAuthenticated(query.requesterId)
       .andThen((requesterId) =>
@@ -63,9 +102,9 @@ const findReservationByIdQueryHandler = (
 }
 
 // Command handler — REPEATABLE READ
-const createReservationCommandHandler = (
+function createReservationCommandHandler(
   command: CreateReservationCommand,
-): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> => {
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
   return withTransaction({ isolationLevel: 'REPEATABLE READ' }, (transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>

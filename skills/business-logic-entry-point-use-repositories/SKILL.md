@@ -76,21 +76,56 @@ Apply this skill to code that does one or more of these things:
    - Remove persistence-technology imports from the entry-point file.
 
 4. Pass transaction context through the repository when needed.
-   - If the entry point manages a transaction, pass the transaction context to the repository so it participates in the same transaction.
-   - The repository receives the transaction context but does not own or manage the transaction lifecycle.
+   - When the `business-logic-entry-point-execution-context` skill is active, the repository retrieves the transaction from the execution context internally. Do not pass the transaction as a parameter.
+   - When the execution context skill is not active, pass the transaction context to the repository explicitly so it participates in the same transaction.
+   - The repository does not own or manage the transaction lifecycle.
 
 ## Examples
 
-Use this:
+Use this (with execution context):
 
 ```ts
-const createOrderCommandHandler = (
+function createOrderCommandHandler(
   command: CreateOrderCommand,
-): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> => {
+): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
+  return runWithExecutionContext(
+    () =>
+      ensureRequesterIsAuthenticated()
+        .andThen((requesterId) =>
+          orderRepository.create(order)
+        ),
+    { transaction: { isolationLevel: "REPEATABLE READ" } },
+  )
+}
+```
+
+Not this:
+
+```ts
+function createOrderCommandHandler(
+  command: CreateOrderCommand,
+): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
+  return runWithExecutionContext(
+    () =>
+      ensureRequesterIsAuthenticated()
+        .andThen((requesterId) =>
+          prisma.order.create({ data: { /* ... */ } })
+        ),
+    { transaction: { isolationLevel: "REPEATABLE READ" } },
+  )
+}
+```
+
+Use this (explicit passing, for languages without execution context):
+
+```ts
+function createOrderCommandHandler(
+  command: CreateOrderCommand,
+): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
   return withTransaction((transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>
-        orderRepository.save(transaction, order)
+        orderRepository.create(transaction, order)
       )
   )
 }
@@ -99,9 +134,9 @@ const createOrderCommandHandler = (
 Not this:
 
 ```ts
-const createOrderCommandHandler = (
+function createOrderCommandHandler(
   command: CreateOrderCommand,
-): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> => {
+): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
   return withTransaction((transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>

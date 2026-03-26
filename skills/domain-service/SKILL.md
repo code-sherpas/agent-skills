@@ -105,11 +105,11 @@ Domain service for a transfer between two accounts (different aggregates):
 
 ```ts
 // Domain service — pure domain logic, no infrastructure
-const executeTransfer = (
+function executeTransfer(
   sourceAccount: Account,
   targetAccount: Account,
   amount: Money,
-): { updatedSource: Account; updatedTarget: Account } => {
+): { updatedSource: Account; updatedTarget: Account } {
   if (!sourceAccount.hasSufficientFunds(amount)) {
     throw new InsufficientFundsError()
   }
@@ -119,17 +119,22 @@ const executeTransfer = (
   }
 }
 
-// Entry point orchestrates
-const transferCommandHandler = (
+// Entry point orchestrates (with execution context)
+function transferCommandHandler(
   accountRepository: AccountRepository,
-) => (command: TransferCommand) => {
-  return withTransaction((transaction) => {
-    const source = accountRepository.findById(transaction, command.sourceAccountId)
-    const target = accountRepository.findById(transaction, command.targetAccountId)
-    const { updatedSource, updatedTarget } = executeTransfer(source, target, command.amount)
-    accountRepository.save(transaction, updatedSource)
-    accountRepository.save(transaction, updatedTarget)
-  })
+) {
+  return function (command: TransferCommand) {
+    return runWithExecutionContext(
+      () => {
+        const source = accountRepository.findById(command.sourceAccountId)
+        const target = accountRepository.findById(command.targetAccountId)
+        const { updatedSource, updatedTarget } = executeTransfer(source, target, command.amount)
+        accountRepository.update(updatedSource)
+        accountRepository.update(updatedTarget)
+      },
+      { transaction: { isolationLevel: "REPEATABLE READ" } },
+    )
+  }
 }
 ```
 
@@ -195,21 +200,26 @@ Not this — cross-aggregate logic embedded in the entry point:
 
 ```ts
 // Bad: domain logic mixed with orchestration in the entry point
-const transferCommandHandler = (
+function transferCommandHandler(
   accountRepository: AccountRepository,
-) => (command: TransferCommand) => {
-  return withTransaction((transaction) => {
-    const source = accountRepository.findById(transaction, command.sourceAccountId)
-    const target = accountRepository.findById(transaction, command.targetAccountId)
-    // Domain logic should not be here
-    if (source.balance < command.amount) {
-      throw new InsufficientFundsError()
-    }
-    const updatedSource = source.debit(command.amount)
-    const updatedTarget = target.credit(command.amount)
-    accountRepository.save(transaction, updatedSource)
-    accountRepository.save(transaction, updatedTarget)
-  })
+) {
+  return function (command: TransferCommand) {
+    return runWithExecutionContext(
+      () => {
+        const source = accountRepository.findById(command.sourceAccountId)
+        const target = accountRepository.findById(command.targetAccountId)
+        // Domain logic should not be here
+        if (source.balance < command.amount) {
+          throw new InsufficientFundsError()
+        }
+        const updatedSource = source.debit(command.amount)
+        const updatedTarget = target.credit(command.amount)
+        accountRepository.update(updatedSource)
+        accountRepository.update(updatedTarget)
+      },
+      { transaction: { isolationLevel: "REPEATABLE READ" } },
+    )
+  }
 }
 ```
 

@@ -64,11 +64,11 @@ This skill is a specialization of the general `ensure business constraints` skil
 
 ## Input Convention
 
-The authentication constraint needs to receive the requester's authentication information from the entry point's input.
+The authentication constraint needs to receive the requester's authentication information.
 
-- The command or query type at the entry point should include the requester identity or authentication token as a field.
-- The constraint receives that field and verifies it represents an authenticated requester.
-- Do not reach outside the entry point's input to obtain authentication state. The entry point must receive all necessary information through its declared parameter.
+When the `business-logic-entry-point-execution-context` skill is active in the project, the command or query type does not need to carry the requester identity — `runWithExecutionContext` resolves it internally when creating the context. The constraint retrieves the requester identity from the execution context instead of receiving it as a parameter.
+
+When the execution context skill is not active, the command or query type at the entry point should include the requester identity or authentication token as a field. The constraint receives that field and verifies it represents an authenticated requester. Do not reach outside the entry point's input to obtain authentication state.
 
 ## Detection Workflow
 
@@ -116,18 +116,45 @@ The authentication constraint needs to receive the requester's authentication in
 
 ## Examples
 
-TypeScript with neverthrow:
+TypeScript with execution context and neverthrow:
 
 ```ts
-const ensureRequesterIsAuthenticated = (
+function ensureRequesterIsAuthenticated(): ResultAsync<
+  RequesterId,
+  RequesterIsNotAuthenticated
+> {
+  const ctx = getExecutionContext();
+  const requesterId = ctx?.requesterId ?? null;
+
+  if (!requesterId) {
+    return errAsync(new RequesterIsNotAuthenticated());
+  }
+
+  return okAsync(requesterId as RequesterId);
+}
+
+function createReservationCommandHandler(
+  command: CreateReservationCommand,
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
+  return ensureRequesterIsAuthenticated()
+    .andThen((requesterId) => {
+      // other business constraints and business logic using requesterId
+    })
+}
+```
+
+TypeScript with neverthrow (explicit passing, for languages without execution context):
+
+```ts
+function ensureRequesterIsAuthenticated(
   requesterId: RequesterId,
-): ResultAsync<RequesterId, RequesterIsNotAuthenticated> => {
+): ResultAsync<RequesterId, RequesterIsNotAuthenticated> {
   // verify the requester is authenticated, return the requesterId on success
 }
 
-const createReservationCommandHandler = (
+function createReservationCommandHandler(
   command: CreateReservationCommand,
-): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> => {
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
   return ensureRequesterIsAuthenticated(command.requesterId)
     .andThen((requesterId) => {
       // other business constraints and business logic using requesterId
@@ -135,19 +162,19 @@ const createReservationCommandHandler = (
 }
 ```
 
-TypeScript with exceptions:
+TypeScript with exceptions (explicit passing, for languages without execution context):
 
 ```ts
-const ensureRequesterIsAuthenticated = (
+function ensureRequesterIsAuthenticated(
   requesterId: RequesterId,
-): Promise<RequesterId> => {
+): Promise<RequesterId> {
   // verify the requester is authenticated, throw RequesterIsNotAuthenticated if not
   // return the requesterId on success
 }
 
-const createReservationCommandHandler = async (
+async function createReservationCommandHandler(
   command: CreateReservationCommand,
-): Promise<CreateReservationCommandHandlerSuccess> => {
+): Promise<CreateReservationCommandHandlerSuccess> {
   const requesterId = await ensureRequesterIsAuthenticated(command.requesterId)
   // other business constraints and business logic using requesterId
 }

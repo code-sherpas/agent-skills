@@ -73,9 +73,9 @@ type CreateReservationCommandHandlerSuccess = {
   reservationId: ReservationId
 }
 
-export const createReservationCommandHandler = (
+export function createReservationCommandHandler(
   command: CreateReservationCommand,
-): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> => {
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
   // business logic
 }
 ```

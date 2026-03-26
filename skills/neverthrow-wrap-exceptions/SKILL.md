@@ -75,8 +75,9 @@ const fetchUser = ResultAsync.fromThrowable(
   (error) => ({ type: 'UserFetchError', cause: error }),
 )
 
-const readBody = (): ResultAsync<RequestBody, BodyReadError> =>
-  ResultAsync.fromPromise(request.json(), toBodyReadError)
+function readBody(): ResultAsync<RequestBody, BodyReadError> {
+  return ResultAsync.fromPromise(request.json(), toBodyReadError)
+}
 ```
 
 ## Validate Before Finishing

@@ -51,9 +51,9 @@ Prefer this when the stack allows it:
 
 ```ts
 // create-reservation-command-handler.ts
-export const createReservationCommandHandler = (
+export function createReservationCommandHandler(
   command: CreateReservationCommand,
-): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> => {
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
   // business logic
 }
 ```

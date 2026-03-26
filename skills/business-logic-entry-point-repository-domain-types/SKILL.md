@@ -81,9 +81,34 @@ Apply this skill to code that does one or more of these things:
    - Convert persistence representations to domain entities when reading from storage.
    - Keep all persistence-technology imports and type references inside the repository implementation, not in the interface.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, repository method signatures do not include the transaction parameter. The repository implementation retrieves the transaction from the execution context internally. When the transaction from the execution context is `undefined` or `null`, the repository must create a new standalone transaction for that operation. All other rules from this skill still apply: method signatures must use domain-entity types and domain value types exclusively.
+
 ## Examples
 
-Use this:
+Use this (with execution context):
+
+```ts
+// Repository interface — domain types only
+interface OrderRepository {
+  create(order: Order): ResultAsync<Order, RepositoryError>
+  findById(orderId: OrderId): ResultAsync<Order, RepositoryError>
+  findByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError>
+}
+```
+
+Not this:
+
+```ts
+// Repository leaking ORM types
+interface OrderRepository {
+  create(order: OrderEntity): ResultAsync<OrderEntity, RepositoryError>
+  findById(orderId: string): ResultAsync<OrderEntity, RepositoryError>
+}
+```
+
+Use this (explicit passing, for languages without execution context):
 
 ```ts
 // Repository interface — domain types only

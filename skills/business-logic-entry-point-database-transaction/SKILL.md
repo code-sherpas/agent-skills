@@ -79,14 +79,44 @@ Apply this skill to code that does one or more of these things:
 4. Do not suppress transaction errors.
    - If the commit fails, propagate the error through the entry point's error convention.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, the database transaction must be stored in the execution context instead of being passed explicitly through the call chain.
+
+- `runWithExecutionContext` accepts an optional transaction parameter that opens the transaction and stores it in the execution context before running the callback. The entry point does not use a separate `withTransaction` wrapper.
+- Inner functions, business constraints, and repository methods retrieve the transaction from the execution context instead of receiving it as a parameter.
+- The entry point still owns the transaction lifecycle through `runWithExecutionContext`: it opens, commits, and rolls back the transaction.
+- When a repository retrieves the transaction from the execution context and it is `undefined` or `null`, the repository must create a new standalone transaction for that operation. This ensures repository methods work both inside a wrapping transaction and outside one.
+- All other rules from this skill still apply: the transaction wraps the entire entry-point flow, it is opened at the entry-point level, and all database-accessing steps run inside it.
+
 ## Examples
 
-TypeScript with a transaction wrapper:
+TypeScript with execution context:
 
 ```ts
-const createReservationCommandHandler = (
+function createReservationCommandHandler(
   command: CreateReservationCommand,
-): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> => {
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
+  return runWithExecutionContext(
+    () =>
+      ensureRequesterIsAuthenticated()
+        .andThen((requesterId) =>
+          ensureAvailableCars(command.carClass)
+        )
+        .andThen(() =>
+          persistReservation(reservation)
+        ),
+    { transaction: { isolationLevel: "REPEATABLE READ" } },
+  )
+}
+```
+
+TypeScript with a transaction wrapper (explicit passing, for languages without execution context):
+
+```ts
+function createReservationCommandHandler(
+  command: CreateReservationCommand,
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
   return withTransaction((transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>

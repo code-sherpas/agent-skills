@@ -83,9 +83,35 @@ Do not apply this skill when:
    - Provide the concrete repository to the entry point at the composition level.
    - Follow the project's existing wiring conventions.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, repository interface method signatures do not include the transaction parameter. The repository implementation retrieves the transaction from the execution context internally. When the transaction from the execution context is `undefined` or `null`, the repository must create a new standalone transaction for that operation. All other rules from this skill still apply: the entry point depends on the interface, the concrete implementation is provided from outside, and the interface lives in the business-logic or domain layer.
+
 ## Examples
 
-Interface and entry point depending on it:
+Interface and entry point depending on it (with execution context):
+
+```ts
+// Repository interface — in the business-logic layer
+interface OrderRepository {
+  create(order: Order): ResultAsync<Order, RepositoryError>
+  findById(orderId: OrderId): ResultAsync<Order, RepositoryError>
+}
+
+// Entry point depends on the interface
+function createOrderCommandHandler(
+  orderRepository: OrderRepository, // interface, not implementation
+) {
+  return function (command: CreateOrderCommand) {
+    return runWithExecutionContext(
+      () => orderRepository.create(Order.create(command.customerId, command.items)),
+      { transaction: { isolationLevel: "REPEATABLE READ" } },
+    )
+  }
+}
+```
+
+Interface and entry point (explicit passing, for languages without execution context):
 
 ```ts
 // Repository interface — in the business-logic layer
@@ -95,12 +121,14 @@ interface OrderRepository {
 }
 
 // Entry point depends on the interface
-const createOrderCommandHandler = (
+function createOrderCommandHandler(
   orderRepository: OrderRepository, // interface, not implementation
-) => (command: CreateOrderCommand) => {
-  return withTransaction((transaction) =>
-    orderRepository.save(transaction, Order.create(command.customerId, command.items))
-  )
+) {
+  return function (command: CreateOrderCommand) {
+    return withTransaction((transaction) =>
+      orderRepository.save(transaction, Order.create(command.customerId, command.items))
+    )
+  }
 }
 ```
 
@@ -145,10 +173,12 @@ Not this — entry point depending on the concrete implementation:
 // Bad: entry point imports and depends on concrete implementation
 import { PrismaOrderRepository } from '../infrastructure/prisma-order-repository'
 
-const createOrderCommandHandler = (
+function createOrderCommandHandler(
   orderRepository: PrismaOrderRepository, // concrete implementation, not interface
-) => (command: CreateOrderCommand) => {
-  // ...
+) {
+  return function (command: CreateOrderCommand) {
+    // ...
+  }
 }
 ```
 

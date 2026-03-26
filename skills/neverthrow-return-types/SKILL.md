@@ -68,12 +68,13 @@ The only allowed exception is an incompatible boundary enforced by the surroundi
 When the outer API cannot return `neverthrow`, use this pattern:
 
 ```ts
-const createUser = (
+function createUser(
   input: CreateUserInput,
-): ResultAsync<User, CreateUserError> =>
-  validateInput(input).asyncAndThen(insertUser)
+): ResultAsync<User, CreateUserError> {
+  return validateInput(input).asyncAndThen(insertUser)
+}
 
-export const post = async (request: Request): Promise<Response> => {
+export async function post(request: Request): Promise<Response> {
   const result = await createUser(await request.json())
 
   return result.match(

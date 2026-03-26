@@ -49,9 +49,9 @@ type CreateReservationCommand = {
   endsAt: ZonedDateTime
 }
 
-const createReservationCommandHandler = (
+function createReservationCommandHandler(
   command: CreateReservationCommand,
-): Promise<CreateReservationCommandHandlerSuccess> => {
+): Promise<CreateReservationCommandHandlerSuccess> {
   // ...
 }
 ```
@@ -94,9 +94,9 @@ type ApproveOrderCommand = {
   approverId: UserId
 }
 
-const approveOrderCommandHandler = (
+function approveOrderCommandHandler(
   command: ApproveOrderCommand,
-): Promise<void> => {
+): Promise<void> {
   // ...
 }
 ```
@@ -124,9 +124,9 @@ type CreateOrderCommandHandlerSuccess = {
   orderId: OrderId
 }
 
-const createOrderCommandHandler = (
+function createOrderCommandHandler(
   command: CreateOrderCommand,
-): Promise<CreateOrderCommandHandlerSuccess> => {
+): Promise<CreateOrderCommandHandlerSuccess> {
   // ...
 }
 ```
@@ -151,9 +151,9 @@ type FindOrderByIdQueryHandlerSuccess = {
   order: Order
 }
 
-const findOrderByIdQueryHandler = (
+function findOrderByIdQueryHandler(
   query: FindOrderByIdQuery,
-): Promise<FindOrderByIdQueryHandlerSuccess> => {
+): Promise<FindOrderByIdQueryHandlerSuccess> {
   // ...
 }
 ```
@@ -197,9 +197,9 @@ type SearchOrdersQueryHandlerSuccess = {
   totalCount: number
 }
 
-const searchOrdersQueryHandler = (
+function searchOrdersQueryHandler(
   query: SearchOrdersQuery,
-): Promise<SearchOrdersQueryHandlerSuccess> => {
+): Promise<SearchOrdersQueryHandlerSuccess> {
   // ...
 }
 ```

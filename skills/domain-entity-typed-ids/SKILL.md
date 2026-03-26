@@ -147,7 +147,7 @@ assignOrderToCustomer(customerId, orderId)        // compile error
 Structural type system without low-friction mechanism — rely on naming:
 
 ```ts
-const assignOrderToCustomer = (orderId: string, customerId: string) => { /* ... */ }
+function assignOrderToCustomer(orderId: string, customerId: string) { /* ... */ }
 
 // The compiler does not catch this swap — naming discipline is the safeguard
 assignOrderToCustomer(orderId, customerId)

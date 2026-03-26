@@ -183,13 +183,15 @@ data class OrderItem(
 Different aggregates — Order references User by ID only:
 
 ```ts
-// In the entry point, not inside the entity
-const createOrderCommandHandler = (command: CreateOrderCommand) => {
-  return withTransaction((transaction) =>
-    userRepository.findById(transaction, command.userId)
-      .andThen((user) =>
-        orderRepository.save(transaction, Order.create(user.id, command.items))
-      )
+// In the entry point, not inside the entity (with execution context)
+function createOrderCommandHandler(command: CreateOrderCommand) {
+  return runWithExecutionContext(
+    () =>
+      userRepository.findById(command.userId)
+        .andThen((user) =>
+          orderRepository.create(Order.create(user.id, command.items))
+        ),
+    { transaction: { isolationLevel: "REPEATABLE READ" } },
   )
 }
 ```

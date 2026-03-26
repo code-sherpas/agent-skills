@@ -125,9 +125,13 @@ Do not define a `save` operation on repositories.
    - Add a repository operation only when a business-logic entry point needs it.
    - Do not pre-populate repositories with operations that no entry point uses yet.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, repository methods do not receive the transaction as a parameter. The repository implementation retrieves the transaction from the execution context internally. When the transaction from the execution context is `undefined` or `null`, the repository must create a new standalone transaction for that operation. All other rules from this skill still apply: the same operations, naming conventions, return types, and the no-save rule.
+
 ## Examples
 
-TypeScript:
+TypeScript with execution context:
 
 ```ts
 type SortDirection = 'asc' | 'desc'
@@ -150,6 +154,31 @@ type PaginatedResult<T> = {
   totalCount: number
 }
 
+interface OrderRepository {
+  findById(orderId: OrderId): ResultAsync<Order, OrderNotFoundError>
+  create(order: Order): ResultAsync<Order, RepositoryError>
+  update(order: Order): ResultAsync<Order, RepositoryError>
+  search(
+    filters: FilterClause<Order>[],
+    pageNumber: number,
+    pageSize: number,
+    sortBy: SortClause<Order>[],
+  ): ResultAsync<PaginatedResult<Order>, RepositoryError>
+  deleteById(orderId: OrderId): ResultAsync<void, RepositoryError>
+}
+```
+
+Not this:
+
+```ts
+interface OrderRepository {
+  save(order: Order): ResultAsync<Order, RepositoryError>
+}
+```
+
+TypeScript (explicit passing, for languages without execution context):
+
+```ts
 interface OrderRepository {
   findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order, OrderNotFoundError>
   create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>

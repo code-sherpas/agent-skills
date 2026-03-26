@@ -77,9 +77,77 @@ Apply this skill to code that does one or more of these things:
 5. Look for side effects.
    - If saving or deleting triggers additional behavior beyond the persistence operation, check whether that behavior is a business concern.
 
+## Delegation to Execution Context
+
+When the `business-logic-entry-point-execution-context` skill is active in the project, the repository implementation retrieves the transaction from the execution context instead of receiving it as a parameter. The repository method signature does not include the transaction. When the transaction from the execution context is `undefined` or `null`, the repository must create a new standalone transaction for that operation. All other rules from this skill still apply: the repository must contain no business logic.
+
 ## Examples
 
-Correct — repository does only persistence:
+Correct — repository does only persistence (with execution context):
+
+```ts
+class PrismaOrderRepository implements OrderRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  create(order: Order): ResultAsync<Order, RepositoryError> {
+    const client = getExecutionContext()?.transaction ?? this.prisma;
+    // maps Order to persistence representation and saves — nothing else
+    return ResultAsync.fromPromise(
+      client.order.create({
+        data: toPersistence(order),
+      }),
+      (error) => new RepositoryError(error),
+    ).map(() => order)
+  }
+
+  findById(orderId: OrderId): ResultAsync<Order | null, RepositoryError> {
+    const client = getExecutionContext()?.transaction ?? this.prisma;
+    // queries and maps back to domain type — nothing else
+    return ResultAsync.fromPromise(
+      client.order.findUnique({ where: { id: orderId } }),
+      (error) => new RepositoryError(error),
+    ).map((record) => record ? toDomain(record) : null)
+  }
+}
+```
+
+Not this — business logic inside the repository:
+
+```ts
+class PrismaOrderRepository implements OrderRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  create(order: Order): ResultAsync<Order, RepositoryError> {
+    const client = getExecutionContext()?.transaction ?? this.prisma;
+    // Bad: validating a business rule before saving
+    if (order.items.length === 0) {
+      return errAsync(new RepositoryError('Order must have at least one item'))
+    }
+    // Bad: transforming domain state
+    const orderWithTotal = { ...order, total: calculateTotal(order.items) }
+    return ResultAsync.fromPromise(
+      client.order.create({
+        data: toPersistence(orderWithTotal),
+      }),
+      (error) => new RepositoryError(error),
+    ).map(() => orderWithTotal)
+  }
+
+  findActiveByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError> {
+    const client = getExecutionContext()?.transaction ?? this.prisma;
+    // Bad: implicit business filter — "active" is a business concept
+    // the caller should request the specific status filter
+    return ResultAsync.fromPromise(
+      client.order.findMany({
+        where: { customerId, status: { not: 'cancelled' } },
+      }),
+      (error) => new RepositoryError(error),
+    ).map((records) => records.map(toDomain))
+  }
+}
+```
+
+Correct — repository does only persistence (explicit passing, for languages without execution context):
 
 ```ts
 class PrismaOrderRepository implements OrderRepository {
