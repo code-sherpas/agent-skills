@@ -23,6 +23,10 @@ A prototype is not an excuse for lower quality. Apply the same standards the pro
 - Code quality must pass the project's linting, formatting, and type-checking rules.
 - Component structure, naming, file organization, and styling must follow the project's established conventions.
 
+### Responsive to All Supported Display Modes
+
+The prototype must support every screen size, viewport, orientation, and display mode that the project's application already supports. If the application is responsive, the prototype is responsive. If the application supports specific breakpoints, the prototype honors those breakpoints. Do not build for a single viewport and leave other supported sizes broken or degraded.
+
 ## Workflow
 
 ### 1. Detect the Project Stack and Conventions
@@ -88,6 +92,7 @@ When reading or reviewing prototype code, ask:
 - Does every data operation go through a simulated asynchronous delay?
 - Does the UI show appropriate loading feedback during delays?
 - Does the visual quality and code structure match the rest of the project?
+- Does the prototype work correctly at every screen size and display mode the project supports?
 - Does data persist across page reloads?
 - Are localStorage keys namespaced to avoid collisions?
 
@@ -103,4 +108,5 @@ When finishing the task:
 - State how loading, error, and empty states are handled and confirm they follow project conventions.
 - State the localStorage key namespace used.
 - State how to reset the prototype data.
+- State which screen sizes or display modes were verified and confirm they match the project's supported targets.
 - Confirm that no backend code was created or modified.
