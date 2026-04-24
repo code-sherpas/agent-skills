@@ -18,6 +18,16 @@ Follow this order every time:
 
 Aim for feature components to be composed mostly of project components, design-system primitives, and framework-native composition mechanisms. Keep direct low-level nodes isolated inside reusable primitives whenever practical.
 
+## Recursive Decomposition Rule
+
+Mandatory: every component must be decomposed into smaller components recursively until it can no longer be meaningfully split.
+
+- Apply this to every new and every touched component, not only top-level feature components.
+- A component is "atomic enough" only when further extraction would produce a wrapper with no distinct responsibility, no reuse potential, and no clearer naming than the markup it holds.
+- Repeated markup clusters, named visual regions, self-contained interaction blocks, and anything with its own variants or state are signals to extract — keep decomposing until none of these remain.
+- Decomposition applies even when no reuse exists yet. Clarity, single responsibility, and testability are enough reasons to split.
+- Stop only at true leaves: design-system primitives, tiny semantic wrappers, or nodes whose split would not improve readability, reuse, or responsibility.
+
 ## Workflow
 
 1. Detect the stack and local component model.
@@ -42,8 +52,10 @@ Aim for feature components to be composed mostly of project components, design-s
    - Introduce new primitives in the design-system or shared layer when the abstraction is broadly useful.
    - Keep raw platform nodes inside those primitives instead of spreading them across higher-level feature components.
 
-5. Extract reusable subcomponents immediately after writing new code.
+5. Decompose recursively until no further split is meaningful.
    - Extract repeated or clearly named markup clusters in the same task.
+   - After each extraction, re-inspect both the parent and the new child and split again if either still holds a distinct responsibility, a named region, or its own state or variants.
+   - Repeat until every remaining node is a true leaf: a design-system primitive, a tiny semantic wrapper, or a cluster whose further split would not improve readability, reuse, or responsibility.
    - Prefer local feature-shared components first. Promote to global shared components only after the abstraction proves useful beyond one feature area.
 
 6. Keep the final component tree high-level.
