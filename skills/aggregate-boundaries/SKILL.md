@@ -188,8 +188,12 @@ function createOrderCommandHandler(command: CreateOrderCommand) {
   return runWithExecutionContext(
     () =>
       userRepository.findById(command.userId)
+        // findById returns User | null — convert absence into a domain error
+        // before continuing with the create.
         .andThen((user) =>
-          orderRepository.create(Order.create(user.id, command.items))
+          user === null
+            ? errAsync(new UserNotFoundError(command.userId))
+            : orderRepository.create(Order.create(user.id, command.items))
         ),
     { transaction: { isolationLevel: "REPEATABLE READ" } },
   )
@@ -199,17 +203,24 @@ function createOrderCommandHandler(command: CreateOrderCommand) {
 ```py
 def create_order_command_handler(command: CreateOrderCommand):
     with transaction() as tx:
+        # find_by_id returns User | None — convert absence into a domain error
+        # before continuing with the create.
         user = user_repository.find_by_id(tx, command.user_id)
+        if user is None:
+            raise UserNotFoundError(command.user_id)
         order = Order.create(user_id=user.id, items=command.items)
-        return order_repository.save(tx, order)
+        return order_repository.create(tx, order)
 ```
 
 ```kt
 fun createOrderCommandHandler(command: CreateOrderCommand) {
     return withTransaction { tx ->
+        // findById returns User? — convert absence into a domain error before
+        // continuing with the create.
         val user = userRepository.findById(tx, command.userId)
+            ?: throw UserNotFoundError(command.userId)
         val order = Order.create(userId = user.id, items = command.items)
-        orderRepository.save(tx, order)
+        orderRepository.create(tx, order)
     }
 }
 ```

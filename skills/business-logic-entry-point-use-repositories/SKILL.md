@@ -9,7 +9,7 @@ description: Require business-logic entry points to access domain-entity persist
 
 Every business-logic entry point that persists, retrieves, or deletes domain entities must do so exclusively through repositories.
 
-A repository is an abstraction that encapsulates the persistence and retrieval of domain entities. It exposes operations expressed in domain terms — such as save, find, delete — and hides the underlying persistence technology.
+A repository is an abstraction that encapsulates the persistence and retrieval of domain entities. It exposes operations expressed in domain terms — such as create, update, find, delete — and hides the underlying persistence technology.
 
 Business-logic entry points must not call the project's ORM, database library, framework persistence API, query builder, or any other persistence technology directly. All creation, reading, updating, and deletion of domain entities must go through a repository.
 
@@ -32,7 +32,7 @@ Apply this skill to code that does one or more of these things:
    - Do not import or reference persistence-technology modules from business-logic entry points.
 
 2. Repositories expose domain-term operations.
-   - Repository method names must express domain intent: `save`, `findById`, `findByEmail`, `delete`, `existsWithName`.
+   - Repository method names must express domain intent and follow the canonical operation set: `findBy<Field>(s)` (single-row, returns an absence-permitting type), `findManyBy<Field>(s)` (multi-row, collection), `search` (dynamic listings), `existsBy<Field>(s)` / `existManyBy<Field>(s)` (boolean checks that delegate to the corresponding `findBy*` / `findManyBy*`), `create`, `update`, `deleteById`. See `business-logic-entry-point-repository-operations`.
    - Repository method signatures must use domain-entity types and domain value types, not persistence-layer types.
 
 3. One repository per domain entity or aggregate.
@@ -153,6 +153,8 @@ def find_customer_by_id_query_handler(
     query: FindCustomerByIdQuery,
 ) -> FindCustomerByIdQueryHandlerSuccess:
     with transaction() as tx:
+        # find_by_id returns Customer | None — absence is a valid result,
+        # not an error. The entry point decides what to do with it.
         customer = customer_repository.find_by_id(tx, query.customer_id)
         return FindCustomerByIdQueryHandlerSuccess(customer=customer)
 ```
@@ -175,9 +177,12 @@ fun cancelSubscriptionCommandHandler(
     command: CancelSubscriptionCommand,
 ): CancelSubscriptionCommandHandlerSuccess {
     return withTransaction { tx ->
+        // findById returns Subscription? — the entry point converts
+        // absence into the appropriate domain error for this use case.
         val subscription = subscriptionRepository.findById(tx, command.subscriptionId)
-        subscription.cancel()
-        subscriptionRepository.save(tx, subscription)
+            ?: throw SubscriptionNotFoundError(command.subscriptionId)
+        val cancelled = subscription.cancel()
+        subscriptionRepository.update(tx, cancelled)
     }
 }
 ```

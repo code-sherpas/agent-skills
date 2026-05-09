@@ -32,7 +32,7 @@ Given a domain-entity type, prefer these basic entry points:
    - Typical examples: `string`, `int`, `decimal`, `url`, `date`, `datetime`, text fields, free-form names, descriptions, notes, counters, limits, and similar values.
 
 3. `find by id`
-   - Returns exactly one entity by its identity or fails when it does not exist.
+   - Returns the entity by its identity, or an absence value (`null`, `undefined`, `None`, `Optional<T>`, etc., idiomatic to the stack) when it does not exist. Absence is a valid result, not a failure.
 
 4. `search`
    - Returns a collection of entities or results.
@@ -71,7 +71,7 @@ Typical fields for `update`:
 
 Do not use `update` for finite-state or relationship-changing operations when a more explicit entry point is appropriate.
 
-### Use `find by id` for one-or-fail retrieval
+### Use `find by id` for single-entity retrieval
 
 Use a dedicated `find by id` entry point when the caller needs one specific entity by identity.
 
@@ -82,7 +82,7 @@ Examples:
 - `findRoleById`
 - `findPermissionById`
 
-The operation should either return the requested entity or fail according to the project's error convention.
+The operation returns the requested entity or an absence value (`T | null`, `Optional<T>`, etc., idiomatic to the stack). Absence is a valid result and must not be reported as a domain error from the entry point unless the use case truly demands it; the underlying repository operation never throws on not-found.
 
 ### Use `search` for filtering, sorting, and pagination
 
@@ -211,6 +211,8 @@ Keep this skill focused on choosing the right entry point kind. If other skills 
    - Return a boolean instead of overloading a command or search operation for that purpose.
 
 ## Examples
+
+The `findXById` entry points return `T | null` (or the idiomatic absence value of the stack); the underlying repository operations never throw on not-found, per `business-logic-entry-point-repository-operations`.
 
 Prefer this set for a `User` entity:
 

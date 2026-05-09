@@ -31,7 +31,7 @@ Apply this skill to code that does one or more of these things:
 
 2. Do not add references for read or query convenience.
    - If the only reason to add a reference is to retrieve related data for display, listing, or reporting, do not add it to the entity.
-   - Resolve read-direction queries through repository operations instead — for example, `orderRepository.findByCustomerId(customerId)`.
+   - Resolve read-direction queries through repository operations instead — for example, `orderRepository.findManyByCustomerId(customerId)`.
 
 3. Evaluate each direction independently.
    - For entity A and entity B, ask separately: does A need to know about B for its own invariants or behavior? Does B need to know about A for its own invariants or behavior?
@@ -102,7 +102,7 @@ class Customer {
 }
 
 // When you need a customer's orders, use the repository:
-// orderRepository.findByCustomerId(customerId)
+// orderRepository.findManyByCustomerId(customerId)
 ```
 
 ```py
@@ -120,7 +120,7 @@ class Customer:
     # No order_ids here — Customer does not need orders for its own invariants
 
 # When you need a customer's orders, use the repository:
-# order_repository.find_by_customer_id(customer_id)
+# order_repository.find_many_by_customer_id(customer_id)
 ```
 
 ```kt
@@ -138,7 +138,7 @@ data class Customer(
 )
 
 // When you need a customer's orders, use the repository:
-// orderRepository.findByCustomerId(customerId)
+// orderRepository.findManyByCustomerId(customerId)
 ```
 
 Bidirectional — both sides have independent domain justification:

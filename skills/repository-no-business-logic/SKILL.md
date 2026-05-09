@@ -12,7 +12,7 @@ Repositories must contain no business logic. A repository is a persistence gatew
 A repository's responsibility is limited to:
 
 - translating between domain types and persistence representations
-- executing persistence operations — save, find, delete
+- executing persistence operations — create, update, find, delete
 - mapping query parameters to persistence queries
 
 A repository must not:
@@ -29,7 +29,7 @@ Business logic belongs in domain entities, aggregate roots, domain services, or 
 
 Apply this skill to code that does one or more of these things:
 
-- implements a repository method — save, find, delete, or equivalent
+- implements a repository method — create, update, find, delete, or equivalent
 - adds conditional logic inside a repository that depends on business rules
 - adds validation, invariant checks, or domain decisions inside a repository
 - adds data transformation that represents a business operation inside a repository
@@ -38,7 +38,7 @@ Apply this skill to code that does one or more of these things:
 ## The Rule
 
 1. A repository persists and retrieves exactly what it is asked to.
-   - A save operation persists the entity as provided — it does not modify, validate, or reject it based on business rules.
+   - A create or update operation persists the entity as provided — it does not modify, validate, or reject it based on business rules.
    - A find operation returns the data matching the caller's criteria — it does not filter, transform, or enrich the result based on business rules.
    - A delete operation removes what the caller specifies — it does not check whether deletion is allowed by business rules.
 
@@ -62,7 +62,7 @@ Apply this skill to code that does one or more of these things:
 ## Detection Workflow
 
 1. Read the repository implementation.
-   - Examine each method — save, find, delete, and any custom query methods.
+   - Examine each method — create, update, find, delete, and any custom query methods.
 
 2. Look for conditional logic that depends on business rules.
    - If-statements, guards, or branches that check domain state and alter behavior are a signal.
@@ -91,7 +91,7 @@ class PrismaOrderRepository implements OrderRepository {
 
   create(order: Order): ResultAsync<Order, RepositoryError> {
     const client = getExecutionContext()?.transaction ?? this.prisma;
-    // maps Order to persistence representation and saves — nothing else
+    // maps Order to persistence representation and creates — nothing else
     return ResultAsync.fromPromise(
       client.order.create({
         data: toPersistence(order),
@@ -133,10 +133,11 @@ class PrismaOrderRepository implements OrderRepository {
     ).map(() => orderWithTotal)
   }
 
-  findActiveByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError> {
+  findManyByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError> {
     const client = getExecutionContext()?.transaction ?? this.prisma;
-    // Bad: implicit business filter — "active" is a business concept
-    // the caller should request the specific status filter
+    // Bad: implicit business filter — "not cancelled" is a domain concept
+    // the caller did not ask for. The repo must return every order for
+    // the customer; the entry point decides which statuses to include.
     return ResultAsync.fromPromise(
       client.order.findMany({
         where: { customerId, status: { not: 'cancelled' } },
@@ -151,13 +152,11 @@ Correct — repository does only persistence (explicit passing, for languages wi
 
 ```ts
 class PrismaOrderRepository implements OrderRepository {
-  save(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError> {
-    // maps Order to persistence representation and saves — nothing else
+  create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError> {
+    // maps Order to persistence representation and inserts — nothing else
     return ResultAsync.fromPromise(
-      transaction.order.upsert({
-        where: { id: order.id },
-        create: toPersistence(order),
-        update: toPersistence(order),
+      transaction.order.create({
+        data: toPersistence(order),
       }),
       (error) => new RepositoryError(error),
     ).map(() => order)
@@ -177,7 +176,7 @@ Not this — business logic inside the repository:
 
 ```ts
 class PrismaOrderRepository implements OrderRepository {
-  save(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError> {
+  create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError> {
     // Bad: validating a business rule before saving
     if (order.items.length === 0) {
       return errAsync(new RepositoryError('Order must have at least one item'))
@@ -185,18 +184,17 @@ class PrismaOrderRepository implements OrderRepository {
     // Bad: transforming domain state
     const orderWithTotal = { ...order, total: calculateTotal(order.items) }
     return ResultAsync.fromPromise(
-      transaction.order.upsert({
-        where: { id: order.id },
-        create: toPersistence(orderWithTotal),
-        update: toPersistence(orderWithTotal),
+      transaction.order.create({
+        data: toPersistence(orderWithTotal),
       }),
       (error) => new RepositoryError(error),
     ).map(() => orderWithTotal)
   }
 
-  findActiveByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<Order[], RepositoryError> {
-    // Bad: implicit business filter — "active" is a business concept
-    // the caller should request the specific status filter
+  findManyByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<Order[], RepositoryError> {
+    // Bad: implicit business filter — "not cancelled" is a domain concept
+    // the caller did not ask for. The repo must return every order for
+    // the customer; the entry point decides which statuses to include.
     return ResultAsync.fromPromise(
       transaction.order.findMany({
         where: { customerId, status: { not: 'cancelled' } },

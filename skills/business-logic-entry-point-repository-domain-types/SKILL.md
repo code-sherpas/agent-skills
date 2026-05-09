@@ -68,12 +68,12 @@ Apply this skill to code that does one or more of these things:
    - Express repository operations in terms of those domain types.
 
 2. Define parameters using domain types.
-   - Accept domain entities for save and update operations.
+   - Accept domain entities for create and update operations.
    - Accept domain value types or primitives with domain meaning for query parameters (e.g., entity IDs, email addresses).
 
 3. Define return types using domain types.
-   - Return domain entities for find and get operations.
-   - Return collections of domain entities for list operations.
+   - Return domain entities (or an absence-permitting type) for `findBy*` operations.
+   - Return collections of domain entities for `findManyBy*` and `search` operations.
    - Return domain value types when the operation produces a domain result that is not a full entity.
 
 4. Implement the translation inside the repository.
@@ -92,9 +92,10 @@ Use this (with execution context):
 ```ts
 // Repository interface — domain types only
 interface OrderRepository {
+  findById(orderId: OrderId): ResultAsync<Order | null, RepositoryError>
+  findManyByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError>
   create(order: Order): ResultAsync<Order, RepositoryError>
-  findById(orderId: OrderId): ResultAsync<Order, RepositoryError>
-  findByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError>
+  update(order: Order): ResultAsync<Order, RepositoryError>
 }
 ```
 
@@ -103,8 +104,8 @@ Not this:
 ```ts
 // Repository leaking ORM types
 interface OrderRepository {
+  findById(orderId: string): ResultAsync<OrderEntity | null, RepositoryError>
   create(order: OrderEntity): ResultAsync<OrderEntity, RepositoryError>
-  findById(orderId: string): ResultAsync<OrderEntity, RepositoryError>
 }
 ```
 
@@ -113,9 +114,10 @@ Use this (explicit passing, for languages without execution context):
 ```ts
 // Repository interface — domain types only
 interface OrderRepository {
-  save(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
-  findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order, RepositoryError>
-  findByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<Order[], RepositoryError>
+  findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order | null, RepositoryError>
+  findManyByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<Order[], RepositoryError>
+  create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
+  update(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
 }
 ```
 
@@ -124,8 +126,8 @@ Not this:
 ```ts
 // Repository leaking ORM types
 interface OrderRepository {
-  save(transaction: Transaction, order: OrderEntity): ResultAsync<OrderEntity, RepositoryError>
-  findById(transaction: Transaction, orderId: string): ResultAsync<OrderEntity, RepositoryError>
+  findById(transaction: Transaction, orderId: string): ResultAsync<OrderEntity | null, RepositoryError>
+  create(transaction: Transaction, order: OrderEntity): ResultAsync<OrderEntity, RepositoryError>
 }
 ```
 
@@ -134,8 +136,9 @@ Use this:
 ```py
 # Repository with domain types
 class CustomerRepository(Protocol):
-    def find_by_id(self, tx: Transaction, customer_id: CustomerId) -> Customer: ...
-    def save(self, tx: Transaction, customer: Customer) -> Customer: ...
+    def find_by_id(self, tx: Transaction, customer_id: CustomerId) -> Customer | None: ...
+    def create(self, tx: Transaction, customer: Customer) -> Customer: ...
+    def update(self, tx: Transaction, customer: Customer) -> Customer: ...
 ```
 
 Not this:
@@ -143,8 +146,8 @@ Not this:
 ```py
 # Repository leaking SQLAlchemy model
 class CustomerRepository(Protocol):
-    def find_by_id(self, tx: Transaction, customer_id: str) -> CustomerModel: ...
-    def save(self, tx: Transaction, customer: CustomerModel) -> CustomerModel: ...
+    def find_by_id(self, tx: Transaction, customer_id: str) -> CustomerModel | None: ...
+    def create(self, tx: Transaction, customer: CustomerModel) -> CustomerModel: ...
 ```
 
 Use this:
@@ -152,8 +155,9 @@ Use this:
 ```kt
 // Repository with domain types
 interface SubscriptionRepository {
-    fun findById(tx: Transaction, subscriptionId: SubscriptionId): Subscription
-    fun save(tx: Transaction, subscription: Subscription): Subscription
+    fun findById(tx: Transaction, subscriptionId: SubscriptionId): Subscription?
+    fun create(tx: Transaction, subscription: Subscription): Subscription
+    fun update(tx: Transaction, subscription: Subscription): Subscription
 }
 ```
 
@@ -162,8 +166,8 @@ Not this:
 ```kt
 // Repository leaking JPA entity
 interface SubscriptionRepository {
-    fun findById(tx: Transaction, subscriptionId: Long): SubscriptionEntity
-    fun save(tx: Transaction, subscription: SubscriptionEntity): SubscriptionEntity
+    fun findById(tx: Transaction, subscriptionId: Long): SubscriptionEntity?
+    fun create(tx: Transaction, subscription: SubscriptionEntity): SubscriptionEntity
 }
 ```
 

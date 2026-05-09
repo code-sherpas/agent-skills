@@ -94,8 +94,9 @@ Interface and entry point depending on it (with execution context):
 ```ts
 // Repository interface — in the business-logic layer
 interface OrderRepository {
+  findById(orderId: OrderId): ResultAsync<Order | null, RepositoryError>
   create(order: Order): ResultAsync<Order, RepositoryError>
-  findById(orderId: OrderId): ResultAsync<Order, RepositoryError>
+  update(order: Order): ResultAsync<Order, RepositoryError>
 }
 
 // Entry point depends on the interface
@@ -116,8 +117,9 @@ Interface and entry point (explicit passing, for languages without execution con
 ```ts
 // Repository interface — in the business-logic layer
 interface OrderRepository {
-  save(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
-  findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order, RepositoryError>
+  findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order | null, RepositoryError>
+  create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
+  update(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
 }
 
 // Entry point depends on the interface
@@ -126,7 +128,7 @@ function createOrderCommandHandler(
 ) {
   return function (command: CreateOrderCommand) {
     return withTransaction((transaction) =>
-      orderRepository.save(transaction, Order.create(command.customerId, command.items))
+      orderRepository.create(transaction, Order.create(command.customerId, command.items))
     )
   }
 }
@@ -135,8 +137,9 @@ function createOrderCommandHandler(
 ```py
 # Repository interface — in the business-logic layer
 class OrderRepository(Protocol):
-    def save(self, tx: Transaction, order: Order) -> Order: ...
-    def find_by_id(self, tx: Transaction, order_id: OrderId) -> Order: ...
+    def find_by_id(self, tx: Transaction, order_id: OrderId) -> Order | None: ...
+    def create(self, tx: Transaction, order: Order) -> Order: ...
+    def update(self, tx: Transaction, order: Order) -> Order: ...
 
 # Entry point depends on the interface
 def create_order_command_handler(
@@ -145,15 +148,16 @@ def create_order_command_handler(
     def handler(command: CreateOrderCommand):
         with transaction() as tx:
             order = Order.create(customer_id=command.customer_id, items=command.items)
-            return order_repository.save(tx, order)
+            return order_repository.create(tx, order)
     return handler
 ```
 
 ```kt
 // Repository interface — in the business-logic layer
 interface OrderRepository {
-    fun save(tx: Transaction, order: Order): Order
-    fun findById(tx: Transaction, orderId: OrderId): Order
+    fun findById(tx: Transaction, orderId: OrderId): Order?
+    fun create(tx: Transaction, order: Order): Order
+    fun update(tx: Transaction, order: Order): Order
 }
 
 // Entry point depends on the interface
@@ -162,7 +166,7 @@ fun createOrderCommandHandler(
 ) = fun(command: CreateOrderCommand): Order {
     return withTransaction { tx ->
         val order = Order.create(customerId = command.customerId, items = command.items)
-        orderRepository.save(tx, order)
+        orderRepository.create(tx, order)
     }
 }
 ```

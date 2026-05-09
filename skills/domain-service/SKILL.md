@@ -27,7 +27,7 @@ Apply this skill to code that does one or more of these things:
 Do not apply this skill when:
 
 - the logic involves only entities within the same aggregate — that logic belongs on the aggregate root
-- the logic is pure orchestration — loading entities, calling save, managing transactions — that belongs in the entry point
+- the logic is pure orchestration — loading entities, calling create or update, managing transactions — that belongs in the entry point
 - the logic is infrastructure-related — persistence, messaging, external API calls — that belongs in the infrastructure layer
 
 ## The Rule
@@ -126,8 +126,12 @@ function transferCommandHandler(
   return function (command: TransferCommand) {
     return runWithExecutionContext(
       () => {
+        // findById returns Account | null — the entry point converts absence
+        // into a domain error before invoking the domain service.
         const source = accountRepository.findById(command.sourceAccountId)
+        if (source === null) throw new AccountNotFoundError(command.sourceAccountId)
         const target = accountRepository.findById(command.targetAccountId)
+        if (target === null) throw new AccountNotFoundError(command.targetAccountId)
         const { updatedSource, updatedTarget } = executeTransfer(source, target, command.amount)
         accountRepository.update(updatedSource)
         accountRepository.update(updatedTarget)
@@ -158,11 +162,17 @@ def transfer_command_handler(
 ):
     def handler(command: TransferCommand):
         with transaction() as tx:
+            # find_by_id returns Account | None — the entry point converts
+            # absence into a domain error before invoking the domain service.
             source = account_repository.find_by_id(tx, command.source_account_id)
+            if source is None:
+                raise AccountNotFoundError(command.source_account_id)
             target = account_repository.find_by_id(tx, command.target_account_id)
+            if target is None:
+                raise AccountNotFoundError(command.target_account_id)
             updated_source, updated_target = execute_transfer(source, target, command.amount)
-            account_repository.save(tx, updated_source)
-            account_repository.save(tx, updated_target)
+            account_repository.update(tx, updated_source)
+            account_repository.update(tx, updated_target)
     return handler
 ```
 
@@ -187,11 +197,15 @@ fun transferCommandHandler(
     accountRepository: AccountRepository,
 ) = fun(command: TransferCommand) {
     withTransaction { tx ->
+        // findById returns Account? — the entry point converts absence into
+        // a domain error before invoking the domain service.
         val source = accountRepository.findById(tx, command.sourceAccountId)
+            ?: throw AccountNotFoundError(command.sourceAccountId)
         val target = accountRepository.findById(tx, command.targetAccountId)
+            ?: throw AccountNotFoundError(command.targetAccountId)
         val (updatedSource, updatedTarget) = executeTransfer(source, target, command.amount)
-        accountRepository.save(tx, updatedSource)
-        accountRepository.save(tx, updatedTarget)
+        accountRepository.update(tx, updatedSource)
+        accountRepository.update(tx, updatedTarget)
     }
 }
 ```
