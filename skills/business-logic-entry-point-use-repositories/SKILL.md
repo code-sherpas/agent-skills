@@ -32,7 +32,7 @@ Apply this skill to code that does one or more of these things:
    - Do not import or reference persistence-technology modules from business-logic entry points.
 
 2. Repositories expose domain-term operations.
-   - Repository method names must express domain intent and follow the canonical operation set: `findBy<Field>(s)` (single-row, returns an absence-permitting type), `findManyBy<Field>(s)` (multi-row, collection), `search` (dynamic listings), `existsBy<Field>(s)` / `existManyBy<Field>(s)` (boolean checks that delegate to the corresponding `findBy*` / `findManyBy*`), `create`, `update`, `deleteById`. See `business-logic-entry-point-repository-operations`.
+   - Repository method names must express domain intent and follow the canonical operation set: `findBy<Field>(s)` (single-row, returns an absence-permitting type), `findManyBy<Field>(s)` (multi-row, collection), `search` (dynamic listings), `countBy<Field>(s)` (numeric aggregation), `existsBy<Field>(s)` / `existManyBy<Field>(s)` (boolean checks that delegate to the corresponding `countBy*`), `create`, `update`, `deleteById`. See `business-logic-entry-point-repository-operations`.
    - Repository method signatures must use domain-entity types and domain value types, not persistence-layer types.
 
 3. One repository per domain entity or aggregate.

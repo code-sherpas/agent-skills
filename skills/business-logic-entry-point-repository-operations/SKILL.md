@@ -1,6 +1,6 @@
 ---
 name: business-logic-entry-point-repository-operations
-description: Require repository interfaces to expose a standard set of operations with specific signatures, naming conventions, and a strict error model. Use when an agent needs to create, modify, review, or interpret repository interfaces used by business-logic entry points. Repositories must offer findBy<Field> (single-row, returns an absence-permitting type), findManyBy<Field> (multi-row, collection), search (dynamic filters, pagination, sorting), existsBy<Field> / existManyBy<Field> (booleans that delegate to findBy / findManyBy), create, update, and deleteById. Errors describe only infrastructure concerns; any domain-level outcome (not found, empty, false) is a valid return value.
+description: Require repository interfaces to expose a standard set of operations with specific signatures, naming conventions, and a strict error model. Use when an agent needs to create, modify, review, or interpret repository interfaces used by business-logic entry points. Repositories must offer findBy<Field> (single-row, returns an absence-permitting type), findManyBy<Field> (multi-row, collection), search (dynamic filters, pagination, sorting), countBy<Field> (numeric aggregation, AND/OR), existsBy<Field> / existManyBy<Field> (booleans derived from countBy<Field>), create, update, and deleteById. Errors describe only infrastructure concerns; any domain-level outcome (not found, empty, zero, false) is a valid return value.
 ---
 
 # Repository Operations for Business Logic Entry Points
@@ -9,11 +9,16 @@ description: Require repository interfaces to expose a standard set of operation
 
 Repository interfaces must expose a standard set of operations with clear naming, explicit intent, predictable return types, and a strict error model.
 
-Each operation must make its purpose unambiguous. A caller reading the repository interface must know immediately whether it is creating a new entity, updating an existing one, retrieving zero-or-one by identity or unique key, retrieving zero-or-many by criteria, performing a dynamic listing, asking whether something exists, or deleting by identity.
+Each operation must make its purpose unambiguous. A caller reading the repository interface must know immediately whether it is creating a new entity, updating an existing one, retrieving zero-or-one by identity or unique key, retrieving zero-or-many by criteria, performing a dynamic listing, counting matches, asking whether something exists, or deleting by identity.
+
+The operation set is organized in two families:
+
+- **Entity fetch family** (`findBy*`, `findManyBy*`, `search`) — returns domain entities.
+- **Aggregation family** (`countBy*`, `existsBy*`, `existManyBy*`) — returns scalars (number, boolean) computed over the same predicates.
 
 Two cross-cutting rules apply to every operation:
 
-- **Domain outcomes are valid return values, never errors.** Not found, empty list, false existence — all are valid results. Errors are reserved for infrastructure failures.
+- **Domain outcomes are valid return values, never errors.** Not found, empty list, zero count, false existence — all are valid results. Errors are reserved for infrastructure failures.
 - **`save` is forbidden.** Always distinguish between `create` and `update` explicitly so the caller's intent is never ambiguous.
 
 ## What Counts as In Scope
@@ -25,9 +30,10 @@ Apply this skill to code that does one or more of these things:
 - introduces a `save` method that handles both creation and update
 - introduces a method that throws or returns a domain error when an entity is not found
 - introduces a `findBy*` method whose return type is a collection
-- introduces an `existsBy*` / `existManyBy*` method whose implementation runs its own query rather than delegating
+- introduces an `existsBy*` / `existManyBy*` method whose implementation does not delegate to the corresponding `countBy*`
+- introduces a `countBy*` whose predicate visibly diverges from the corresponding `findManyBy*`
 - exposes a domain-shaped error type (`*NotFoundError`, `*AlreadyTakenError`, etc.) in a repository signature
-- defines find, search, exists, create, update, or delete operations on a repository
+- defines find, search, count, exists, create, update, or delete operations on a repository
 
 ## The Operations
 
@@ -65,21 +71,34 @@ The search operation combines filtering, pagination, and sorting in a single met
 - **Pagination**: a page number and a page size. The return type must include both the collection of domain entities and the total count of matching entities so the caller can compute the total number of pages.
 - **Sorting**: a list of sort clauses, each specifying an attribute name and a direction (ascending or descending).
 
-### 4. `existsBy<Field>` (single-row exists) / `existManyBy<Field>` (multi-row exists)
+### 4. `countBy<Field>` (numeric aggregation)
+
+Returns the number of domain entities matching one or more fields combined with AND, OR, or both.
+
+- **Naming**: `countBy<Field>` for one field; `countBy<Field1>And<Field2>`, `countBy<Field1>Or<Field2>`, and combinations of AND and OR for multiple fields. There is no `countManyBy*` form: `count` is intrinsically about cardinality, so the single-vs-multi distinction does not apply. AND/OR combinators are allowed for any field count.
+- **Parameter**: the value(s) for the field(s).
+- **Returns**: a non-negative integer idiomatic to the stack (`number`, `int`, `Int`).
+- **Contract**: `countBy<Field>(args)` must return the same number that `findManyBy<Field>(args).length` would return for the same arguments — same predicate, same semantics. Where a `findBy<Field>` exists for a unique field, `countBy<Field>` must return `0` or `1` according to whether the entity is present.
+- **Implementation**: free, and **encouraged to use the engine's native aggregation** (`COUNT(*)` in SQL, `prisma.model.count`, `countDocuments` in MongoDB, etc.). Forced delegation to `findManyBy*` is not required because the cost would be O(n) — loading every matching row in memory just to count it defeats the purpose of having a separate aggregation operation.
+- **Verification when not delegating**: tests must verify that `countBy<Field>(args)` equals `findManyBy<Field>(args).length` (or `findBy<Field>(args) !== null ? 1 : 0` for unique fields) on a representative set of inputs. The contract is enforced by tests, not by implementation form.
+- **An empty result is `0`, never an error.**
+- **Forbidden**: a `countBy<Field>` whose predicate visibly diverges from the corresponding `findManyBy<Field>` (for example, a hidden status filter). That is no longer a "count derived from find" — it is a different operation and must be renamed accordingly, or the dynamic filter must be moved to `search`.
+
+### 5. `existsBy<Field>` (single-row exists) / `existManyBy<Field>` (multi-row exists)
 
 Returns whether at least one domain entity exists matching a criterion.
 
 - **Naming**: `existsBy<Field>` (verb in third-person singular: "does it exist") for the single-row form; `existManyBy<Field>` (verb in plural, **without the trailing `s`**: "do they exist") for the multi-row form. The presence/absence of the `s` is semantic, not stylistic.
 - **Combinator rules**: same as `findBy*` / `findManyBy*` — single-row admits only AND between fields; multi-row admits AND, OR, and combinations.
-- **Parameter**: identical to the corresponding `findBy*` / `findManyBy*` method.
+- **Parameter**: identical to the corresponding `countBy*` method.
 - **Returns**: a boolean idiomatic to the stack (`boolean`, `bool`).
-- **Implementation requirement**: every `existsBy*` / `existManyBy*` method **must delegate** to the corresponding `findBy*` / `findManyBy*` of the same repository:
-  - `existsBy<Field>` calls `findBy<Field>` and returns whether the result is present (`!== null`, `is not None`, `?: return false`, etc.).
-  - `existManyBy<Field>` calls `findManyBy<Field>` and returns whether the resulting collection is non-empty.
-  - Running an independent query (e.g., a SQL `COUNT` or `EXISTS`) is forbidden. The reason: the boolean contract is bound to the find contract — same filters, same domain semantics. Delegating prevents the two from diverging over time.
+- **Implementation requirement**: every `existsBy*` / `existManyBy*` method **must delegate** to the corresponding `countBy*` of the same repository:
+  - `existsBy<Field>(args)` returns `countBy<Field>(args) > 0`.
+  - `existManyBy<Field>(args)` returns `countBy<Field>(args) > 0`.
+  - Running an independent query is forbidden. The reason: the boolean contract is bound to the count contract — same filters, same domain semantics. Delegating prevents the two from diverging over time, and `count` already encapsulates the engine-native aggregation, so there is no performance reason to bypass it.
 - **A negative result is never an error.** `false` is a valid return value.
 
-### 5. `create`
+### 6. `create`
 
 Persists a new domain entity and returns the created entity.
 
@@ -87,7 +106,7 @@ Persists a new domain entity and returns the created entity.
 - **Parameter**: the domain entity to persist.
 - **Returns**: the created domain entity. The returned entity must reflect the state after persistence, including any identity or field assigned during creation.
 
-### 6. `update`
+### 7. `update`
 
 Persists changes to an existing domain entity and returns the updated entity.
 
@@ -95,7 +114,7 @@ Persists changes to an existing domain entity and returns the updated entity.
 - **Parameter**: the domain entity with updated state.
 - **Returns**: the updated domain entity. The returned entity must reflect the state after persistence.
 
-### 7. `deleteById`
+### 8. `deleteById`
 
 Removes a domain entity by its identity.
 
@@ -111,8 +130,9 @@ The following operations or implementations must not appear on a repository. Eac
 - **`save`** — ambiguous. Replace with explicit `create` and `update`.
 - **`getBy*` / `getById` that throws when the entity does not exist** — pushes absence handling onto exceptions. Replace with `findBy*` returning an absence-permitting type. The caller decides whether absence is an error in its use case.
 - **`findBy<Field>` whose return type is a collection** — multi-row query with single-row naming. Rename to `findManyBy<Field>`.
-- **`existsBy*` / `existManyBy*` that runs its own query** — must delegate to the corresponding `findBy*` / `findManyBy*`.
-- **`existsWith*`, `hasBy*`, and other non-canonical existence-check names** — rename to follow the `existsBy*` / `existManyBy*` convention with the singular/plural `s` rule.
+- **`existsBy*` / `existManyBy*` that does not delegate to the corresponding `countBy*`** — must call `countBy<Field>` and return `> 0`.
+- **`countBy<Field>` whose predicate diverges from the corresponding `findManyBy<Field>`** — that is a different operation; rename it explicitly or move the dynamic filter to `search`.
+- **`existsWith*`, `hasBy*`, `countMany*`, and other non-canonical names** — rename to follow the `existsBy*` / `existManyBy*` / `countBy*` conventions, including the singular/plural `s` rule for `exists` / `exist`.
 
 ## Error Model
 
@@ -130,6 +150,7 @@ Repository operations are allowed to produce errors **only** for infrastructure 
 
 - `findBy*` does not find a row → returns an absence value.
 - `findManyBy*` / `search` does not find any rows → returns an empty collection / a page with total 0.
+- `countBy*` finds nothing → returns `0`.
 - `existsBy*` / `existManyBy*` finds nothing → returns `false`.
 - `deleteById` is called with an id that does not exist → succeeds (idempotent).
 
@@ -154,17 +175,23 @@ The error type a repository signature exposes (`RepositoryError` or equivalent) 
    - Verify it returns a paginated result with collection and total count.
    - Verify it returns an empty result (not an error) when nothing matches.
 
-6. Check existence operations.
+6. Check `countBy*`.
+   - Verify it returns a non-negative integer.
+   - Verify the predicate matches the corresponding `findManyBy*` (same fields, same combinators).
+   - When the implementation does not delegate to `findManyBy*`, verify a test exists that asserts `countBy*(args)` equals `findManyBy*(args).length` for representative inputs.
+   - Flag `countBy*` whose predicate diverges silently from `findManyBy*`.
+
+7. Check existence operations.
    - Verify they are named `existsBy*` (singular form) or `existManyBy*` (plural form, no trailing `s` on the verb).
-   - Verify their implementation delegates to the corresponding `findBy*` / `findManyBy*` and does not run an independent query.
+   - Verify the implementation delegates to the corresponding `countBy*` and returns `> 0`. Flag any independent query.
    - Flag any `existsWith*`, `hasBy*`, or other non-canonical names.
 
-7. Check write operations.
+8. Check write operations.
    - Verify `create` accepts a domain entity and returns the created one.
    - Verify `update` accepts a domain entity and returns the updated one.
    - Verify `deleteById` accepts an identity, returns nothing, and is idempotent.
 
-8. Check the error type.
+9. Check the error type.
    - Verify the repository's error type lists only infrastructure categories.
    - Flag any domain-shaped error name in a repository signature (`*NotFoundError`, `*AlreadyTakenError`, `*InvalidError`, etc.).
 
@@ -176,13 +203,15 @@ The error type a repository signature exposes (`RepositoryError` or equivalent) 
 
 2. Name each operation by the canonical pattern.
    - `findBy<Field>` for single-row, `findManyBy<Field>` for multi-row.
-   - `existsBy<Field>` / `existManyBy<Field>` for booleans (with the singular/plural `s` rule).
    - `search` for dynamic listings.
+   - `countBy<Field>` for numeric aggregation (AND/OR allowed, no `countManyBy*` form).
+   - `existsBy<Field>` / `existManyBy<Field>` for booleans (with the singular/plural `s` rule), implemented as `countBy<Field> > 0`.
    - `create`, `update`, `deleteById` for writes.
 
 3. Choose return types that respect the error model.
    - Single-row find: absence-permitting type (`T | null`, `Optional<T>`, etc.).
    - Multi-row find / search: collection / paginated result (empty when nothing matches).
+   - Count: non-negative integer.
    - Existence: boolean.
    - Errors only for infrastructure — never for domain outcomes.
 
@@ -226,32 +255,49 @@ type PaginatedResult<T> = {
 interface OrderRepository {
   findById(orderId: OrderId): ResultAsync<Order | null, RepositoryError>
   findManyByCustomerId(customerId: CustomerId): ResultAsync<Order[], RepositoryError>
-  existsById(orderId: OrderId): ResultAsync<boolean, RepositoryError>
-  existManyByCustomerId(customerId: CustomerId): ResultAsync<boolean, RepositoryError>
   search(
     filters: FilterClause<Order>[],
     pageNumber: number,
     pageSize: number,
     sortBy: SortClause<Order>[],
   ): ResultAsync<PaginatedResult<Order>, RepositoryError>
+  countById(orderId: OrderId): ResultAsync<number, RepositoryError>
+  countByCustomerId(customerId: CustomerId): ResultAsync<number, RepositoryError>
+  existsById(orderId: OrderId): ResultAsync<boolean, RepositoryError>
+  existManyByCustomerId(customerId: CustomerId): ResultAsync<boolean, RepositoryError>
   create(order: Order): ResultAsync<Order, RepositoryError>
   update(order: Order): ResultAsync<Order, RepositoryError>
   deleteById(orderId: OrderId): ResultAsync<void, RepositoryError>
 }
 ```
 
-A correct implementation of the existence operations delegates to the corresponding find operations:
+A correct implementation uses the engine's native count aggregation and derives existence from count:
 
 ```ts
 class PrismaOrderRepository implements OrderRepository {
   // ... findById, findManyByCustomerId, etc.
 
+  countById(orderId: OrderId): ResultAsync<number, RepositoryError> {
+    // Native aggregation — no entities materialized.
+    return ResultAsync.fromPromise(
+      this.prisma.order.count({ where: { id: orderId } }),
+      (error) => new RepositoryError(error),
+    )
+  }
+
+  countByCustomerId(customerId: CustomerId): ResultAsync<number, RepositoryError> {
+    return ResultAsync.fromPromise(
+      this.prisma.order.count({ where: { customerId } }),
+      (error) => new RepositoryError(error),
+    )
+  }
+
   existsById(orderId: OrderId): ResultAsync<boolean, RepositoryError> {
-    return this.findById(orderId).map((order) => order !== null)
+    return this.countById(orderId).map((n) => n > 0)
   }
 
   existManyByCustomerId(customerId: CustomerId): ResultAsync<boolean, RepositoryError> {
-    return this.findManyByCustomerId(customerId).map((orders) => orders.length > 0)
+    return this.countByCustomerId(customerId).map((n) => n > 0)
   }
 }
 ```
@@ -269,6 +315,26 @@ interface OrderRepository {
   // Bad: domain-shaped error in a repository signature
   update(order: Order): ResultAsync<Order, OrderInvalidError>
 }
+
+class BadOrderRepository implements OrderRepository {
+  // Bad: existsBy* runs its own query instead of delegating to countBy*
+  existsById(orderId: OrderId): ResultAsync<boolean, RepositoryError> {
+    return ResultAsync.fromPromise(
+      this.prisma.order.findUnique({ where: { id: orderId } }),
+      (error) => new RepositoryError(error),
+    ).map((r) => r !== null)
+  }
+
+  // Bad: countBy* with a hidden domain filter ("active") that does not match findManyByCustomerId
+  countByCustomerId(customerId: CustomerId): ResultAsync<number, RepositoryError> {
+    return ResultAsync.fromPromise(
+      this.prisma.order.count({
+        where: { customerId, status: { not: 'cancelled' } },
+      }),
+      (error) => new RepositoryError(error),
+    )
+  }
+}
 ```
 
 TypeScript (explicit passing, for languages without execution context):
@@ -277,8 +343,6 @@ TypeScript (explicit passing, for languages without execution context):
 interface OrderRepository {
   findById(transaction: Transaction, orderId: OrderId): ResultAsync<Order | null, RepositoryError>
   findManyByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<Order[], RepositoryError>
-  existsById(transaction: Transaction, orderId: OrderId): ResultAsync<boolean, RepositoryError>
-  existManyByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<boolean, RepositoryError>
   search(
     transaction: Transaction,
     filters: FilterClause<Order>[],
@@ -286,6 +350,10 @@ interface OrderRepository {
     pageSize: number,
     sortBy: SortClause<Order>[],
   ): ResultAsync<PaginatedResult<Order>, RepositoryError>
+  countById(transaction: Transaction, orderId: OrderId): ResultAsync<number, RepositoryError>
+  countByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<number, RepositoryError>
+  existsById(transaction: Transaction, orderId: OrderId): ResultAsync<boolean, RepositoryError>
+  existManyByCustomerId(transaction: Transaction, customerId: CustomerId): ResultAsync<boolean, RepositoryError>
   create(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
   update(transaction: Transaction, order: Order): ResultAsync<Order, RepositoryError>
   deleteById(transaction: Transaction, orderId: OrderId): ResultAsync<void, RepositoryError>
@@ -322,8 +390,6 @@ class PaginatedResult(Generic[T]):
 class OrderRepository(Protocol):
     def find_by_id(self, tx: Transaction, order_id: OrderId) -> Order | None: ...
     def find_many_by_customer_id(self, tx: Transaction, customer_id: CustomerId) -> list[Order]: ...
-    def exists_by_id(self, tx: Transaction, order_id: OrderId) -> bool: ...
-    def exist_many_by_customer_id(self, tx: Transaction, customer_id: CustomerId) -> bool: ...
     def search(
         self,
         tx: Transaction,
@@ -332,6 +398,10 @@ class OrderRepository(Protocol):
         page_size: int,
         sort_by: list[SortClause[Order]],
     ) -> PaginatedResult[Order]: ...
+    def count_by_id(self, tx: Transaction, order_id: OrderId) -> int: ...
+    def count_by_customer_id(self, tx: Transaction, customer_id: CustomerId) -> int: ...
+    def exists_by_id(self, tx: Transaction, order_id: OrderId) -> bool: ...
+    def exist_many_by_customer_id(self, tx: Transaction, customer_id: CustomerId) -> bool: ...
     def create(self, tx: Transaction, order: Order) -> Order: ...
     def update(self, tx: Transaction, order: Order) -> Order: ...
     def delete_by_id(self, tx: Transaction, order_id: OrderId) -> None: ...
@@ -370,8 +440,6 @@ data class PaginatedResult<T>(
 interface OrderRepository {
     fun findById(tx: Transaction, orderId: OrderId): Order?
     fun findManyByCustomerId(tx: Transaction, customerId: CustomerId): List<Order>
-    fun existsById(tx: Transaction, orderId: OrderId): Boolean
-    fun existManyByCustomerId(tx: Transaction, customerId: CustomerId): Boolean
     fun search(
         tx: Transaction,
         filters: List<FilterClause<Order>>,
@@ -379,6 +447,10 @@ interface OrderRepository {
         pageSize: Int,
         sortBy: List<SortClause<Order>>,
     ): PaginatedResult<Order>
+    fun countById(tx: Transaction, orderId: OrderId): Int
+    fun countByCustomerId(tx: Transaction, customerId: CustomerId): Int
+    fun existsById(tx: Transaction, orderId: OrderId): Boolean
+    fun existManyByCustomerId(tx: Transaction, customerId: CustomerId): Boolean
     fun create(tx: Transaction, order: Order): Order
     fun update(tx: Transaction, order: Order): Order
     fun deleteById(tx: Transaction, orderId: OrderId)
@@ -400,8 +472,10 @@ When reading or reviewing code, ask:
 - Does this repository define a `save` method? If so, replace it with explicit `create` and `update`.
 - Does each `findBy*` operation return an absence-permitting type (`T | null`, `Optional<T>`, etc.) instead of throwing on not-found?
 - Does each multi-row query use `findManyBy<Field>` naming (never `findBy<Field>` with a collection return)?
+- Does each `countBy<Field>` use the engine's native aggregation, and does its predicate match the corresponding `findManyBy<Field>` (same fields, same combinators)?
+- When `countBy*` does not delegate to `findManyBy*`, is there a test asserting that `countBy*(args)` equals `findManyBy*(args).length` on representative inputs?
 - Is the `existsBy*` / `existManyBy*` naming applied with the singular/plural `s` rule (`exists` vs `exist`)?
-- Does each `existsBy*` / `existManyBy*` implementation delegate to the corresponding `findBy*` / `findManyBy*` of the same repository, instead of running its own query?
+- Does each `existsBy*` / `existManyBy*` implementation delegate to the corresponding `countBy*` of the same repository (returning `countBy* > 0`), instead of running its own query or delegating to `findBy*` / `findManyBy*`?
 - Does `create` return the created domain entity, and does `update` return the updated one?
 - Does `deleteById` return nothing and treat a missing id as a valid outcome?
 - Does `search` accept filter clauses, pagination, and sort clauses, and return a paginated result with both the collection and the total count?
@@ -416,6 +490,7 @@ When finishing the task:
 - state which repository interfaces were identified or changed
 - state which operations were added, renamed, or corrected
 - state whether any `save` method was split into `create` and `update`
-- state which return types were corrected to match the absence/empty/boolean conventions
-- state whether any `existsBy*` / `existManyBy*` implementations were rewritten to delegate to `findBy*` / `findManyBy*`
+- state which return types were corrected to match the absence/empty/zero/boolean conventions
+- state whether any `countBy*` was added, and whether its predicate aligns with the corresponding `findManyBy*`
+- state whether any `existsBy*` / `existManyBy*` implementations were rewritten to delegate to `countBy*`
 - state whether any domain-shaped error types were removed from repository signatures
