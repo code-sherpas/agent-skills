@@ -124,8 +124,8 @@ function transferCommandHandler(
   accountRepository: AccountRepository,
 ) {
   return function (command: TransferCommand) {
-    return runWithExecutionContext(
-      () => {
+    return runWithinContext(() =>
+      runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () => {
         // findById returns Account | null — the entry point converts absence
         // into a domain error before invoking the domain service.
         const source = accountRepository.findById(command.sourceAccountId)
@@ -135,8 +135,7 @@ function transferCommandHandler(
         const { updatedSource, updatedTarget } = executeTransfer(source, target, command.amount)
         accountRepository.update(updatedSource)
         accountRepository.update(updatedTarget)
-      },
-      { transaction: { isolationLevel: "REPEATABLE READ" } },
+      }),
     )
   }
 }
@@ -161,7 +160,7 @@ def transfer_command_handler(
     account_repository: AccountRepository,
 ):
     def handler(command: TransferCommand):
-        with transaction() as tx:
+        with run_within_transaction(isolation_level="REPEATABLE READ") as tx:
             # find_by_id returns Account | None — the entry point converts
             # absence into a domain error before invoking the domain service.
             source = account_repository.find_by_id(tx, command.source_account_id)
@@ -196,7 +195,7 @@ fun executeTransfer(
 fun transferCommandHandler(
     accountRepository: AccountRepository,
 ) = fun(command: TransferCommand) {
-    withTransaction { tx ->
+    runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         // findById returns Account? — the entry point converts absence into
         // a domain error before invoking the domain service.
         val source = accountRepository.findById(tx, command.sourceAccountId)
@@ -218,8 +217,8 @@ function transferCommandHandler(
   accountRepository: AccountRepository,
 ) {
   return function (command: TransferCommand) {
-    return runWithExecutionContext(
-      () => {
+    return runWithinContext(() =>
+      runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () => {
         const source = accountRepository.findById(command.sourceAccountId)
         const target = accountRepository.findById(command.targetAccountId)
         // Domain logic should not be here
@@ -230,8 +229,7 @@ function transferCommandHandler(
         const updatedTarget = target.credit(command.amount)
         accountRepository.update(updatedSource)
         accountRepository.update(updatedTarget)
-      },
-      { transaction: { isolationLevel: "REPEATABLE READ" } },
+      }),
     )
   }
 }

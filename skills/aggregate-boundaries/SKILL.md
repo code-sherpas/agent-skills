@@ -185,8 +185,8 @@ Different aggregates — Order references User by ID only:
 ```ts
 // In the entry point, not inside the entity (with execution context)
 function createOrderCommandHandler(command: CreateOrderCommand) {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       userRepository.findById(command.userId)
         // findById returns User | null — convert absence into a domain error
         // before continuing with the create.
@@ -195,14 +195,14 @@ function createOrderCommandHandler(command: CreateOrderCommand) {
             ? errAsync(new UserNotFoundError(command.userId))
             : orderRepository.create(Order.create(user.id, command.items))
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
+    ),
   )
 }
 ```
 
 ```py
 def create_order_command_handler(command: CreateOrderCommand):
-    with transaction() as tx:
+    with run_within_transaction(isolation_level="REPEATABLE READ") as tx:
         # find_by_id returns User | None — convert absence into a domain error
         # before continuing with the create.
         user = user_repository.find_by_id(tx, command.user_id)
@@ -214,7 +214,7 @@ def create_order_command_handler(command: CreateOrderCommand):
 
 ```kt
 fun createOrderCommandHandler(command: CreateOrderCommand) {
-    return withTransaction { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         // findById returns User? — convert absence into a domain error before
         // continuing with the create.
         val user = userRepository.findById(tx, command.userId)

@@ -104,9 +104,10 @@ function createOrderCommandHandler(
   orderRepository: OrderRepository, // interface, not implementation
 ) {
   return function (command: CreateOrderCommand) {
-    return runWithExecutionContext(
-      () => orderRepository.create(Order.create(command.customerId, command.items)),
-      { transaction: { isolationLevel: "REPEATABLE READ" } },
+    return runWithinContext(() =>
+      runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
+        orderRepository.create(Order.create(command.customerId, command.items)),
+      ),
     )
   }
 }
@@ -127,7 +128,7 @@ function createOrderCommandHandler(
   orderRepository: OrderRepository, // interface, not implementation
 ) {
   return function (command: CreateOrderCommand) {
-    return withTransaction((transaction) =>
+    return runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, (transaction) =>
       orderRepository.create(transaction, Order.create(command.customerId, command.items))
     )
   }
@@ -146,7 +147,7 @@ def create_order_command_handler(
     order_repository: OrderRepository,  # protocol, not implementation
 ) -> Callable:
     def handler(command: CreateOrderCommand):
-        with transaction() as tx:
+        with run_within_transaction(isolation_level="REPEATABLE READ") as tx:
             order = Order.create(customer_id=command.customer_id, items=command.items)
             return order_repository.create(tx, order)
     return handler
@@ -164,7 +165,7 @@ interface OrderRepository {
 fun createOrderCommandHandler(
     orderRepository: OrderRepository, // interface, not implementation
 ) = fun(command: CreateOrderCommand): Order {
-    return withTransaction { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         val order = Order.create(customerId = command.customerId, items = command.items)
         orderRepository.create(tx, order)
     }

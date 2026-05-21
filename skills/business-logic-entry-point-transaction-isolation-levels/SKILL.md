@@ -45,26 +45,28 @@ If any of these conditions is not met, this skill does not apply.
    - Use the exact isolation level name or constant that the project's database and library expect.
    - Map the conceptual levels (READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ) to the project's specific syntax.
 
-## Delegation to Execution Context
+## Delegation to the Transaction Skill
 
-When the `business-logic-entry-point-execution-context` skill is active in the project, the transaction and its isolation level are passed as the optional second parameter of `runWithExecutionContext`. The isolation level rules remain the same — query handlers use the least blocking level, command handlers use REPEATABLE READ. `runWithExecutionContext` opens the transaction with the specified isolation level and stores it in the execution context. When a repository retrieves the transaction from the execution context and it is `undefined` or `null`, the repository must create a new standalone transaction for that operation.
+The isolation level is set when calling `runWithinTransaction` from the [[business-logic-entry-point-database-transaction]] skill. That function takes an options object — which carries the isolation level — and the callback with the logic to execute inside the transaction. The isolation level rules remain the same: query handlers use the least blocking level, command handlers use REPEATABLE READ.
+
+When the [[business-logic-entry-point-execution-context]] skill is also active, the entry point composes both functions — `runWithinContext` on the outside to set up the context, `runWithinTransaction` on the inside to open the transaction at the chosen isolation level and store it in the context. When a repository retrieves the transaction from the execution context and it is `undefined` or `null`, the repository must create a new standalone transaction for that operation.
 
 ## Examples
 
-TypeScript with execution context:
+TypeScript with execution context — `runWithinContext` outside, `runWithinTransaction` inside:
 
 ```ts
 // Query handler — least blocking isolation level
 function findReservationByIdQueryHandler(
   query: FindReservationByIdQuery,
 ): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "READ UNCOMMITTED" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           findReservationById(query.reservationId)
         ),
-    { transaction: { isolationLevel: "READ UNCOMMITTED" } },
+    ),
   )
 }
 
@@ -72,8 +74,8 @@ function findReservationByIdQueryHandler(
 function createReservationCommandHandler(
   command: CreateReservationCommand,
 ): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           ensureAvailableCars(command.carClass)
@@ -81,19 +83,19 @@ function createReservationCommandHandler(
         .andThen(() =>
           persistReservation(reservation)
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
+    ),
   )
 }
 ```
 
-TypeScript with a transaction wrapper (explicit passing, for languages without execution context):
+TypeScript without execution context — `runWithinTransaction` passes the transaction explicitly to the callback:
 
 ```ts
 // Query handler — least blocking isolation level
 function findReservationByIdQueryHandler(
   query: FindReservationByIdQuery,
 ): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> {
-  return withTransaction({ isolationLevel: 'READ UNCOMMITTED' }, (transaction) =>
+  return runWithinTransaction({ isolationLevel: "READ UNCOMMITTED" }, (transaction) =>
     ensureRequesterIsAuthenticated(query.requesterId)
       .andThen((requesterId) =>
         findReservationById(transaction, query.reservationId)
@@ -105,7 +107,7 @@ function findReservationByIdQueryHandler(
 function createReservationCommandHandler(
   command: CreateReservationCommand,
 ): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
-  return withTransaction({ isolationLevel: 'REPEATABLE READ' }, (transaction) =>
+  return runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, (transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>
         ensureAvailableCars(transaction, command.carClass)
@@ -124,7 +126,7 @@ Python with a context manager:
 def find_reservation_by_id_query_handler(
     query: FindReservationByIdQuery,
 ) -> FindReservationByIdQueryHandlerSuccess:
-    with transaction(isolation_level="READ UNCOMMITTED") as tx:
+    with run_within_transaction(isolation_level="READ UNCOMMITTED") as tx:
         requester_id = ensure_requester_is_authenticated(query.requester_id)
         return find_reservation_by_id(tx, query.reservation_id)
 
@@ -132,7 +134,7 @@ def find_reservation_by_id_query_handler(
 def create_reservation_command_handler(
     command: CreateReservationCommand,
 ) -> CreateReservationCommandHandlerSuccess:
-    with transaction(isolation_level="REPEATABLE READ") as tx:
+    with run_within_transaction(isolation_level="REPEATABLE READ") as tx:
         requester_id = ensure_requester_is_authenticated(command.requester_id)
         ensure_available_cars(tx, command.car_class)
         return persist_reservation(tx, reservation)
@@ -145,7 +147,7 @@ Kotlin with a framework transaction:
 fun findReservationByIdQueryHandler(
     query: FindReservationByIdQuery,
 ): FindReservationByIdQueryHandlerSuccess {
-    return withTransaction(isolationLevel = IsolationLevel.READ_UNCOMMITTED) { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.READ_UNCOMMITTED) { tx ->
         val requesterId = ensureRequesterIsAuthenticated(query.requesterId)
         findReservationById(tx, query.reservationId)
     }
@@ -155,7 +157,7 @@ fun findReservationByIdQueryHandler(
 fun createReservationCommandHandler(
     command: CreateReservationCommand,
 ): CreateReservationCommandHandlerSuccess {
-    return withTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         val requesterId = ensureRequesterIsAuthenticated(command.requesterId)
         ensureAvailableCars(tx, command.carClass)
         persistReservation(tx, reservation)

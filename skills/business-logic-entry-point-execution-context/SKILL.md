@@ -1,6 +1,6 @@
 ---
 name: business-logic-entry-point-execution-context
-description: Require every business-logic entry point to wrap its body with `runWithExecutionContext`, which provides an execution context implicitly accessible from any point in the execution chain. In Node.js projects use AsyncLocalStorage. Use when an agent needs to create, modify, review, or interpret business-logic entry points. The execution context stores cross-cutting data such as the requester identity, the database transaction, or other request-scoped information so that inner functions can access it without receiving it as an explicit parameter. `runWithExecutionContext` encapsulates context creation — it reuses an existing context or creates a new one. The entry point does not build or pass the context object. Infrastructure callers must not be aware of the execution context.
+description: Require every business-logic entry point to wrap its body with `runWithinContext`, which provides an execution context implicitly accessible from any point in the execution chain. In Node.js projects use AsyncLocalStorage. Use when an agent needs to create, modify, review, or interpret business-logic entry points. The execution context stores cross-cutting data such as the requester identity, the database transaction, or other request-scoped information so that inner functions can access it without receiving it as an explicit parameter. `runWithinContext` only sets up the context — it reuses an existing context or creates a new one. It does not open database transactions; that is a separate concern handled by the transaction skill. The entry point does not build or pass the context object. Infrastructure callers must not be aware of the execution context.
 ---
 
 # Execution Context for Business Logic Entry Points
@@ -28,9 +28,9 @@ Apply this skill to code that does one or more of these things:
 
 1. The entry point sets up the execution context.
    - The entry point — not the infrastructure caller — is responsible for setting up the context.
-   - The entry point wraps its own body with `runWithExecutionContext` or its project-equivalent.
-   - `runWithExecutionContext` encapsulates the context lifecycle: it checks if a context already exists in the current execution chain and reuses it, or creates a new one if none exists. The entry point does not build or pass the context object explicitly.
-   - `runWithExecutionContext` accepts an optional second parameter that controls whether a database transaction is created and stored in the execution context, and with which isolation level. When the parameter is omitted, no transaction is created.
+   - The entry point wraps its own body with `runWithinContext` or its project-equivalent.
+   - `runWithinContext` encapsulates the context lifecycle: it checks if a context already exists in the current execution chain and reuses it, or creates a new one if none exists. The entry point does not build or pass the context object explicitly.
+   - `runWithinContext` has a single responsibility: making the execution context available. It does not open database transactions, manage isolation levels, or run any other cross-cutting concern. Transaction management is handled by a separate function (see [[business-logic-entry-point-database-transaction]]).
    - Infrastructure callers (HTTP handlers, controllers, server actions, message consumers) call the entry point directly without knowing about the execution context.
 
 2. Use `AsyncLocalStorage` in Node.js projects.
@@ -66,7 +66,7 @@ Apply this skill to code that does one or more of these things:
    - Identify command handlers, query handlers, use cases, or application services.
 
 2. Check whether the entry point sets up an execution context.
-   - Verify that the entry point wraps its body with `runWithExecutionContext` or its project equivalent.
+   - Verify that the entry point wraps its body with `runWithinContext` or its project equivalent.
 
 3. Check that infrastructure callers do not set up the execution context.
    - HTTP handlers, controllers, server actions, message consumers, and other callers must call the entry point directly.
@@ -88,17 +88,17 @@ Apply this skill to code that does one or more of these things:
 
 2. Create the execution context store.
    - In Node.js, create a single `AsyncLocalStorage<ExecutionContextType>` instance.
-   - Export the `runWithExecutionContext` wrapper and the `getExecutionContext` getter from the same module.
+   - Export the `runWithinContext` wrapper and the `getExecutionContext` getter from the same module.
 
-3. Implement `runWithExecutionContext`.
-   - `runWithExecutionContext` checks if a context already exists in the current execution chain. If it does, it reuses the existing context and runs the function directly. If it does not, it creates a new context and binds it to the execution chain.
-   - The context creation logic is encapsulated inside `runWithExecutionContext`. Entry points do not build or pass the context object.
-   - `runWithExecutionContext` accepts an optional second parameter for transaction options. When provided, it opens a database transaction with the specified isolation level and stores it in the execution context before running the callback. When omitted, no transaction is created.
+3. Implement `runWithinContext`.
+   - `runWithinContext` checks if a context already exists in the current execution chain. If it does, it reuses the existing context and runs the function directly. If it does not, it creates a new context and binds it to the execution chain.
+   - The context creation logic is encapsulated inside `runWithinContext`. Entry points do not build or pass the context object.
+   - `runWithinContext` does not open database transactions, does not accept transaction or isolation-level options, and does not handle any other cross-cutting concern. Transactions live in `runWithinTransaction` (see [[business-logic-entry-point-database-transaction]]).
 
-4. Wrap the entry point's body with `runWithExecutionContext`.
-   - The entry point calls `runWithExecutionContext` with its business logic as a callback.
-   - The entry point does not pass a context object — `runWithExecutionContext` handles that internally.
-   - When the entry point needs a database transaction, it passes the transaction options as the second parameter instead of using a separate `withTransaction` wrapper.
+4. Wrap the entry point's body with `runWithinContext`.
+   - The entry point calls `runWithinContext` with its business logic as a callback.
+   - The entry point does not pass a context object — `runWithinContext` handles that internally.
+   - When the entry point needs a database transaction, it composes `runWithinContext` with `runWithinTransaction` from the [[business-logic-entry-point-database-transaction]] skill: the outer call sets up the context, and the inner call opens the transaction inside it. Each function has a single responsibility.
 
 5. Keep infrastructure callers simple.
    - HTTP handlers, controllers, server actions, and other callers call the entry point directly.
@@ -114,12 +114,8 @@ TypeScript with AsyncLocalStorage:
 
 ```ts
 import { AsyncLocalStorage } from "node:async_hooks";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { ResultAsync } from "neverthrow";
-
-type TransactionOptions = {
-  isolationLevel: Prisma.TransactionIsolationLevel;
-};
 
 type ExecutionContext = {
   requesterId: string | null;
@@ -127,37 +123,14 @@ type ExecutionContext = {
 };
 
 const executionContextStore = new AsyncLocalStorage<ExecutionContext>();
-const prisma = new PrismaClient();
 
-function runWithExecutionContext<Ok, Err>(
+function runWithinContext<Ok, Err>(
   fn: () => ResultAsync<Ok, Err>,
-  options?: { transaction?: TransactionOptions },
 ): ResultAsync<Ok, Err> {
   // Reuse existing context or build a new one
   const context: ExecutionContext =
     executionContextStore.getStore() ?? buildExecutionContext();
 
-  // If transaction options are provided, run fn inside a Prisma interactive transaction
-  if (options?.transaction) {
-    return ResultAsync.fromPromise(
-      prisma.$transaction(async (transaction) => {
-        context.transaction = transaction;
-
-        const result = await executionContextStore.run(context, fn).match(
-          (ok) => ({ ok }),
-          (err) => ({ err }),
-        );
-
-        if ("ok" in result) return result.ok;
-
-        // Throwing is necessary for the transaction to roll back
-        throw result.err;
-      }, options.transaction),
-      (error) => error as Err,
-    );
-  }
-
-  // No transaction requested — just bind the context and run
   return executionContextStore.run(context, fn);
 }
 
@@ -166,20 +139,22 @@ function getExecutionContext(): ExecutionContext | undefined {
 }
 ```
 
+`runWithinContext` does not know about transactions — opening a transaction is the job of `runWithinTransaction` from [[business-logic-entry-point-database-transaction]]. The entry point composes them: the outer call sets up the context, and the inner call opens the transaction inside it.
+
 Command handler with a REPEATABLE READ transaction:
 
 ```ts
 function createReservationCommandHandler(
   command: CreateReservationCommand,
 ): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           ensureAvailableCars(command.carClass)
             .andThen(() => persistReservation(reservation))
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
+    ),
   );
 }
 ```
@@ -190,24 +165,24 @@ Query handler with the least blocking isolation level:
 function findReservationByIdQueryHandler(
   query: FindReservationByIdQuery,
 ): ResultAsync<FindReservationByIdQueryHandlerSuccess, FindReservationByIdQueryHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "READ UNCOMMITTED" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           findReservationById(query.reservationId)
         ),
-    { transaction: { isolationLevel: "READ UNCOMMITTED" } },
+    ),
   );
 }
 ```
 
-Entry point without a transaction:
+Entry point without a transaction — `runWithinContext` is used on its own:
 
 ```ts
 function validateEmailCommandHandler(
   command: ValidateEmailCommand,
 ): ResultAsync<void, ValidateEmailCommandHandlerError> {
-  return runWithExecutionContext(() =>
+  return runWithinContext(() =>
     ensureRequesterIsAuthenticated()
       .andThen((requesterId) =>
         validateEmail(command.email)
@@ -272,7 +247,7 @@ function createReservationCommandHandler(
     transaction: null,
   };
 
-  return runWithExecutionContext(context, () =>
+  return runWithinContext(context, () =>
     ensureRequesterIsAuthenticated()
       .andThen((requesterId) => { ... })
   );
@@ -290,12 +265,26 @@ function createReservationCommandHandler(
 ): void { ... }
 ```
 
+Not this — `runWithinContext` receives transaction options and mixes two concerns:
+
+```ts
+// Bad: runWithinContext should not know about transactions or isolation levels
+function createReservationCommandHandler(
+  command: CreateReservationCommand,
+): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
+  return runWithinContext(
+    () => ensureRequesterIsAuthenticated().andThen(/* ... */),
+    { transaction: { isolationLevel: "REPEATABLE READ" } }, // wrong: belongs to runWithinTransaction
+  );
+}
+```
+
 ## Review Questions
 
 When reading or reviewing code, ask:
 
 - Does this business-logic entry point set up an execution context?
-- Does the entry point wrap its own body with `runWithExecutionContext` or its project equivalent?
+- Does the entry point wrap its own body with `runWithinContext` or its project equivalent?
 - Is there a typed execution context with explicitly nullable fields?
 - Does a `getExecutionContext` getter exist that returns `undefined` when called outside a context scope?
 - Are inner functions retrieving request-scoped data from the execution context instead of receiving it as explicit parameters?

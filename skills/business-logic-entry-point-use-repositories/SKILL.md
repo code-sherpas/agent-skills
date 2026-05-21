@@ -88,13 +88,13 @@ Use this (with execution context):
 function createOrderCommandHandler(
   command: CreateOrderCommand,
 ): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
-          orderRepository.create(order)
+          orderRepository.create(Order.create(command.customerId, command.items))
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
+    ),
   )
 }
 ```
@@ -105,13 +105,13 @@ Not this:
 function createOrderCommandHandler(
   command: CreateOrderCommand,
 ): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           prisma.order.create({ data: { /* ... */ } })
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
+    ),
   )
 }
 ```
@@ -122,10 +122,10 @@ Use this (explicit passing, for languages without execution context):
 function createOrderCommandHandler(
   command: CreateOrderCommand,
 ): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
-  return withTransaction((transaction) =>
+  return runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, (transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>
-        orderRepository.create(transaction, order)
+        orderRepository.create(transaction, Order.create(command.customerId, command.items))
       )
   )
 }
@@ -137,7 +137,7 @@ Not this:
 function createOrderCommandHandler(
   command: CreateOrderCommand,
 ): ResultAsync<CreateOrderCommandHandlerSuccess, CreateOrderCommandHandlerError> {
-  return withTransaction((transaction) =>
+  return runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, (transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>
         prisma.order.create({ data: { /* ... */ } })
@@ -152,7 +152,7 @@ Use this:
 def find_customer_by_id_query_handler(
     query: FindCustomerByIdQuery,
 ) -> FindCustomerByIdQueryHandlerSuccess:
-    with transaction() as tx:
+    with run_within_transaction(isolation_level="READ UNCOMMITTED") as tx:
         # find_by_id returns Customer | None — absence is a valid result,
         # not an error. The entry point decides what to do with it.
         customer = customer_repository.find_by_id(tx, query.customer_id)
@@ -165,7 +165,7 @@ Not this:
 def find_customer_by_id_query_handler(
     query: FindCustomerByIdQuery,
 ) -> FindCustomerByIdQueryHandlerSuccess:
-    with transaction() as tx:
+    with run_within_transaction(isolation_level="READ UNCOMMITTED") as tx:
         customer = session.query(CustomerModel).filter_by(id=query.customer_id).first()
         return FindCustomerByIdQueryHandlerSuccess(customer=customer)
 ```
@@ -176,7 +176,7 @@ Use this:
 fun cancelSubscriptionCommandHandler(
     command: CancelSubscriptionCommand,
 ): CancelSubscriptionCommandHandlerSuccess {
-    return withTransaction { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         // findById returns Subscription? — the entry point converts
         // absence into the appropriate domain error for this use case.
         val subscription = subscriptionRepository.findById(tx, command.subscriptionId)
@@ -193,7 +193,7 @@ Not this:
 fun cancelSubscriptionCommandHandler(
     command: CancelSubscriptionCommand,
 ): CancelSubscriptionCommandHandlerSuccess {
-    return withTransaction { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         val entity = entityManager.find(SubscriptionEntity::class.java, command.subscriptionId)
         entity.status = "cancelled"
         entityManager.merge(entity)

@@ -1,6 +1,6 @@
 ---
 name: business-logic-entry-point-database-transaction
-description: Require every business-logic entry point to wrap its entire flow in a database transaction using the project's library, framework, or ORM, when the underlying persistence technology supports transactions. Use when an agent needs to create, modify, review, or interpret business-logic entry points that interact with a database. The transaction must encompass the full entry-point flow, including business constraints, business operations, and persistence, so that the entire flow succeeds or fails atomically.
+description: Require every business-logic entry point to wrap its entire flow in a database transaction using a dedicated `runWithinTransaction` function that receives the callback with the logic to execute and the isolation level. The function uses the project's library, framework, or ORM, when the underlying persistence technology supports transactions. Use when an agent needs to create, modify, review, or interpret business-logic entry points that interact with a database. The transaction must encompass the full entry-point flow, including business constraints, business operations, and persistence, so that the entire flow succeeds or fails atomically.
 ---
 
 # Database Transaction for Business Logic Entry Points
@@ -26,21 +26,28 @@ Apply this skill to code that does one or more of these things:
 
 ## The Rule
 
-1. Wrap the entire entry-point flow in a single database transaction.
+1. Define a dedicated `runWithinTransaction` function.
+   - The function receives two arguments: an options object that carries the isolation level (and any other transaction-level settings the project needs) and a callback containing the business logic to execute inside the transaction.
+   - The function opens the database transaction using the project's library, framework, or ORM, runs the callback inside it, commits on success, and rolls back on failure.
+   - Transaction management is the single responsibility of this function. It does not set up execution contexts, resolve requester identity, or perform any other cross-cutting concern.
+   - When the [[business-logic-entry-point-execution-context]] skill is active, `runWithinTransaction` stores the opened transaction in the execution context so inner functions can read it through the context getter. The callback signature does not receive the transaction explicitly.
+   - When execution context is not in use, `runWithinTransaction` passes the opened transaction to the callback as an argument, and inner functions receive it explicitly through their parameters.
+
+2. Wrap the entire entry-point flow in a single call to `runWithinTransaction`.
    - The transaction begins before any business constraint that accesses the database.
    - The transaction commits only after the entire flow completes successfully.
    - The transaction rolls back if any step fails.
 
-2. Use the project's transaction mechanism.
-   - Use the library, framework, or ORM that the project already uses for database access.
+3. Use the project's transaction mechanism inside `runWithinTransaction`.
+   - The implementation of `runWithinTransaction` uses the library, framework, or ORM that the project already uses for database access.
    - Follow the project's idiomatic pattern for transaction management, whether that is a decorator, context manager, callback, wrapper function, or explicit begin/commit/rollback.
 
-3. Place the transaction boundary at the entry point, not inside inner helpers.
-   - The entry point owns the transaction.
+4. Place the transaction boundary at the entry point, not inside inner helpers.
+   - The entry point owns the transaction by calling `runWithinTransaction` directly.
    - Inner helpers, business constraints, and persistence functions participate in the transaction but do not open their own.
    - Do not nest independent transactions within the same entry-point flow.
 
-4. Include all database-accessing steps in the transaction.
+5. Include all database-accessing steps in the transaction.
    - Business constraints that query the database to verify preconditions must run inside the transaction.
    - Persistence operations that store or update data must run inside the transaction.
    - Read operations that inform business decisions must run inside the transaction.
@@ -79,26 +86,69 @@ Apply this skill to code that does one or more of these things:
 4. Do not suppress transaction errors.
    - If the commit fails, propagate the error through the entry point's error convention.
 
-## Delegation to Execution Context
+## Composition with Execution Context
 
-When the `business-logic-entry-point-execution-context` skill is active in the project, the database transaction must be stored in the execution context instead of being passed explicitly through the call chain.
+When the [[business-logic-entry-point-execution-context]] skill is active in the project, `runWithinTransaction` and `runWithinContext` are two separate functions, each with a single responsibility. The entry point composes them: the outer call to `runWithinContext` sets up the context, and the inner call to `runWithinTransaction` opens the transaction inside it. The transaction is stored in the execution context so inner functions can read it through the getter.
 
-- `runWithExecutionContext` accepts an optional transaction parameter that opens the transaction and stores it in the execution context before running the callback. The entry point does not use a separate `withTransaction` wrapper.
+- `runWithinContext` does not know about transactions or isolation levels.
+- `runWithinTransaction` does not create or manage the execution context — it assumes the context already exists in the surrounding scope (set up by `runWithinContext`) and writes the opened transaction into it.
 - Inner functions, business constraints, and repository methods retrieve the transaction from the execution context instead of receiving it as a parameter.
-- The entry point still owns the transaction lifecycle through `runWithExecutionContext`: it opens, commits, and rolls back the transaction.
+- The entry point owns the transaction lifecycle through `runWithinTransaction`: it opens, commits, and rolls back the transaction.
 - When a repository retrieves the transaction from the execution context and it is `undefined` or `null`, the repository must create a new standalone transaction for that operation. This ensures repository methods work both inside a wrapping transaction and outside one.
 - All other rules from this skill still apply: the transaction wraps the entire entry-point flow, it is opened at the entry-point level, and all database-accessing steps run inside it.
 
 ## Examples
 
-TypeScript with execution context:
+TypeScript implementation of `runWithinTransaction` integrated with execution context (Prisma):
+
+```ts
+import { Prisma, PrismaClient } from "@prisma/client";
+import { ResultAsync } from "neverthrow";
+
+type TransactionOptions = {
+  isolationLevel: Prisma.TransactionIsolationLevel;
+};
+
+const prisma = new PrismaClient();
+
+function runWithinTransaction<Ok, Err>(
+  options: TransactionOptions,
+  fn: () => ResultAsync<Ok, Err>,
+): ResultAsync<Ok, Err> {
+  const context = getExecutionContext();
+
+  // Reuse an existing transaction already stored in the context
+  if (context?.transaction) {
+    return fn();
+  }
+
+  return ResultAsync.fromPromise(
+    prisma.$transaction(async (transaction) => {
+      if (context) context.transaction = transaction;
+
+      const result = await fn().match(
+        (ok) => ({ ok }),
+        (err) => ({ err }),
+      );
+
+      if ("ok" in result) return result.ok;
+
+      // Throwing is necessary for the transaction to roll back
+      throw result.err;
+    }, options),
+    (error) => error as Err,
+  );
+}
+```
+
+TypeScript entry point — composes `runWithinContext` with `runWithinTransaction`:
 
 ```ts
 function createReservationCommandHandler(
   command: CreateReservationCommand,
 ): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
-  return runWithExecutionContext(
-    () =>
+  return runWithinContext(() =>
+    runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, () =>
       ensureRequesterIsAuthenticated()
         .andThen((requesterId) =>
           ensureAvailableCars(command.carClass)
@@ -106,26 +156,26 @@ function createReservationCommandHandler(
         .andThen(() =>
           persistReservation(reservation)
         ),
-    { transaction: { isolationLevel: "REPEATABLE READ" } },
-  )
+    ),
+  );
 }
 ```
 
-TypeScript with a transaction wrapper (explicit passing, for languages without execution context):
+TypeScript entry point without execution context — `runWithinTransaction` passes the transaction to the callback explicitly:
 
 ```ts
 function createReservationCommandHandler(
   command: CreateReservationCommand,
 ): ResultAsync<CreateReservationCommandHandlerSuccess, CreateReservationCommandHandlerError> {
-  return withTransaction((transaction) =>
+  return runWithinTransaction({ isolationLevel: "REPEATABLE READ" }, (transaction) =>
     ensureRequesterIsAuthenticated(command.requesterId)
       .andThen((requesterId) =>
         ensureAvailableCars(transaction, command.carClass)
       )
       .andThen(() =>
         persistReservation(transaction, reservation)
-      )
-  )
+      ),
+  );
 }
 ```
 
@@ -135,7 +185,7 @@ Python with a context manager:
 def create_reservation_command_handler(
     command: CreateReservationCommand,
 ) -> CreateReservationCommandHandlerSuccess:
-    with transaction() as tx:
+    with run_within_transaction(isolation_level="REPEATABLE READ") as tx:
         requester_id = ensure_requester_is_authenticated(command.requester_id)
         ensure_available_cars(tx, command.car_class)
         return persist_reservation(tx, reservation)
@@ -147,12 +197,22 @@ Kotlin with a framework transaction:
 fun createReservationCommandHandler(
     command: CreateReservationCommand,
 ): CreateReservationCommandHandlerSuccess {
-    return withTransaction { tx ->
+    return runWithinTransaction(isolationLevel = IsolationLevel.REPEATABLE_READ) { tx ->
         val requesterId = ensureRequesterIsAuthenticated(command.requesterId)
         ensureAvailableCars(tx, command.carClass)
         persistReservation(tx, reservation)
     }
 }
+```
+
+Not this — mixing transaction concerns inside `runWithinContext`:
+
+```ts
+// Bad: runWithinContext should not open transactions
+return runWithinContext(
+  () => /* business logic */,
+  { transaction: { isolationLevel: "REPEATABLE READ" } }, // wrong concern
+);
 ```
 
 ## Review Questions

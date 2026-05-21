@@ -66,7 +66,7 @@ This skill is a specialization of the general `ensure business constraints` skil
 
 The authentication constraint needs to receive the requester's authentication information.
 
-When the `business-logic-entry-point-execution-context` skill is active in the project, the command or query type does not need to carry the requester identity — `runWithExecutionContext` resolves it internally when creating the context. The constraint retrieves the requester identity from the execution context instead of receiving it as a parameter.
+When the `business-logic-entry-point-execution-context` skill is active in the project, the command or query type does not need to carry the requester identity — `runWithinContext` resolves it internally when creating the context. The constraint retrieves the requester identity from the execution context instead of receiving it as a parameter.
 
 When the execution context skill is not active, the command or query type at the entry point should include the requester identity or authentication token as a field. The constraint receives that field and verifies it represents an authenticated requester. Do not reach outside the entry point's input to obtain authentication state.
 
