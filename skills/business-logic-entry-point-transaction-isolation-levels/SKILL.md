@@ -14,6 +14,8 @@ When a business-logic entry point wraps its flow in a database transaction and f
 
 If the persistence technology does not support configurable isolation levels, this skill does not apply.
 
+A read-only query handler has a further option: because the least-blocking isolation level provides no cross-statement snapshot, the handler MAY skip the interactive transaction altogether and read over the connection pool instead of opening one at the least-blocking level. See the exception in [[business-logic-entry-point-database-transaction]]. When it does open a transaction, the rule below (least-blocking level for query handlers, REPEATABLE READ for command handlers) still applies.
+
 ## When This Skill Applies
 
 This skill activates only when all four conditions are met:

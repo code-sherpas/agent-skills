@@ -15,6 +15,19 @@ The transaction must encompass the full entry-point flow: business constraints, 
 
 If the persistence technology does not support transactions (e.g., some NoSQL databases, object stores, or file-based storage), this skill does not apply.
 
+## Exception: read-only query handlers may read over the connection pool
+
+A business-logic entry point that performs **no writes** and only needs the least-blocking isolation level — a read-only query handler under Command-Query Separation — MAY skip the interactive transaction entirely and read over the connection pool instead of wrapping its flow in one.
+
+The rationale:
+
+- At the least-blocking isolation level there is no cross-statement snapshot to gain from an interactive transaction, so the transaction buys the read nothing.
+- An interactive transaction pins a single physical connection for its whole flow. Every read of the handler then serializes on that one connection — including reads the ORM resolves as **separate statements**, such as relation `include`s, and any `combine` / `Promise.all` fan-out over repositories. On some drivers this pipelining is a deprecation or a hard error. Reading over the pool gives each read its own connection.
+
+This exception is **only** for handlers that perform no writes. Command handlers — and any handler that mutates state — always wrap their entire flow in a single transaction as the Goal requires; their precondition reads must stay inside that transaction so the flow remains atomic.
+
+When a handler reads over the pool, its repository read methods must work **without** a transaction. Keep the transaction parameter optional and fall back to the pooled client when it is absent, so the same repository method serves both a command handler's transaction and a query handler's pooled read (this composes with the optional-transaction shape the execution-context and repository skills already describe).
+
 ## What Counts as In Scope
 
 Apply this skill to code that does one or more of these things:
