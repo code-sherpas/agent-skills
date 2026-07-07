@@ -1,6 +1,7 @@
 ---
 name: integration-logic
 description: Identify, interpret, review, or write integration logic in code. Use when an agent needs to decide whether code exists so two independent applications can communicate, or when it must implement, preserve, or refactor protocol handling, message exchange, contract mapping, or communication workflows between separate running systems.
+effort: high
 ---
 
 # Integration Logic

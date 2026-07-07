@@ -1,6 +1,7 @@
 ---
 name: business-logic
 description: Identify, interpret, review, or write business logic in code. Use when an agent needs to decide whether code expresses business rules, business algorithms, or business workflows, or when it must implement, preserve, or refactor code that creates, stores, or transforms data according to real business policies.
+effort: high
 ---
 
 # Business Logic

@@ -1,6 +1,7 @@
 ---
 name: domain-service
 description: Identify and encapsulate domain logic that does not belong to any single aggregate into domain services. Use when an agent needs to create, modify, review, or interpret business logic that involves multiple aggregates and does not have a natural owner. A domain service contains pure domain logic — it receives and returns domain types, has no infrastructure dependencies, and does not access repositories, transactions, or external systems. The business-logic entry point orchestrates the domain service by loading the necessary aggregates and passing them in.
+effort: high
 ---
 
 # Domain Service

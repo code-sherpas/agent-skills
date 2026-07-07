@@ -1,6 +1,7 @@
 ---
 name: repository-no-business-logic
 description: Require that repositories contain no business logic. Use when an agent needs to create, modify, review, or interpret a repository implementation. A repository is a persistence gateway — it stores and retrieves domain entities exactly as requested. It must not validate business rules, enforce invariants, make domain decisions, transform domain state, filter results based on business criteria, or perform any operation that belongs to the domain layer. All business logic belongs in domain entities, domain services, or business-logic entry points.
+effort: high
 ---
 
 # Repository No Business Logic

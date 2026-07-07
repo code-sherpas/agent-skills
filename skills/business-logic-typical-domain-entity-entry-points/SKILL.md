@@ -1,6 +1,7 @@
 ---
 name: business-logic-typical-domain-entity-entry-points
 description: Promote a standard set of business-logic entry points around a domain-entity type when an agent must decide which entry points to implement. Use when designing, creating, modifying, reviewing, or completing business-logic entry points for a specific domain entity. Prefer basic entity entry points such as create, update, find by id, search, and delete by id; use explicit mark-as entry points for finite-state changes such as enum or boolean status transitions; use explicit assign or add entry points for one-to-many or many-to-many associations between domain entities; and use explicit check-whether-can-be entry points when the business operation needs a boolean answer about whether an action is currently allowed.
+effort: high
 ---
 
 # Typical Domain-Entity Entry Points for Business Logic

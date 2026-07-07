@@ -1,6 +1,7 @@
 ---
 name: business-logic-entry-point-execution-context
 description: Require every business-logic entry point to wrap its body with `runWithinContext`, which provides an execution context implicitly accessible from any point in the execution chain. In Node.js projects use AsyncLocalStorage. Use when an agent needs to create, modify, review, or interpret business-logic entry points. The execution context stores cross-cutting data such as the requester identity, the database transaction, or other request-scoped information so that inner functions can access it without receiving it as an explicit parameter. `runWithinContext` only sets up the context — it reuses an existing context or creates a new one. It does not open database transactions; that is a separate concern handled by the transaction skill. The entry point does not build or pass the context object. Infrastructure callers must not be aware of the execution context.
+effort: high
 ---
 
 # Execution Context for Business Logic Entry Points

@@ -1,6 +1,7 @@
 ---
 name: business-logic-entry-point-database-transaction
 description: Require every business-logic entry point to wrap its entire flow in a database transaction using a dedicated `runWithinTransaction` function that receives the callback with the logic to execute and the isolation level. The function uses the project's library, framework, or ORM, when the underlying persistence technology supports transactions. Use when an agent needs to create, modify, review, or interpret business-logic entry points that interact with a database. The transaction must encompass the full entry-point flow, including business constraints, business operations, and persistence, so that the entire flow succeeds or fails atomically.
+effort: high
 ---
 
 # Database Transaction for Business Logic Entry Points

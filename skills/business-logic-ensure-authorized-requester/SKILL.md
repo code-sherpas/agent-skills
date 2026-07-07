@@ -1,6 +1,7 @@
 ---
 name: business-logic-ensure-authorized-requester
 description: Enforce an authorization business constraint at business-logic entry points using an `ensure requester is authorized` formalism translated into the syntax and conventions of the project language. Use when an agent needs to create, modify, review, or interpret authorization or permission checks at business-logic entry points. The constraint must be a module-private function in the same module as the entry point. It must verify that the authenticated requester is allowed to execute that entry point's action before any business operation runs. On success it returns a unit-equivalent value. On failure it returns an error when the requester is not authorized.
+effort: high
 ---
 
 # Ensure Authorized Requester for Business Logic Entry Points

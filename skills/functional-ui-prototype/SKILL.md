@@ -1,6 +1,7 @@
 ---
 name: functional-ui-prototype
 description: Build functional UI/UX prototypes that run entirely in the browser. Use when creating, extending, or refactoring a prototype that must look and behave like a complete feature without touching backend code. All data persistence is simulated through localStorage with realistic latency so the prototype can be used under the same conditions as a full implementation. Backend modification is strictly prohibited.
+effort: xhigh
 ---
 
 # Functional UI Prototype

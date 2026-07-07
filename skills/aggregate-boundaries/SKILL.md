@@ -1,6 +1,7 @@
 ---
 name: aggregate-boundaries
 description: Determine and enforce aggregate boundaries when domain entities relate to other domain entities. Use when an agent needs to create, modify, review, or interpret a domain entity that references another domain entity. The agent must determine whether the related entities belong to the same aggregate or to different aggregates, apply the correct reference style — direct reference within the same aggregate, identity reference across aggregates — and document the boundary decision in the project's agent instructions file so future tasks reuse the same decision without asking again.
+effort: max
 ---
 
 # Domain Entity Aggregate Boundaries

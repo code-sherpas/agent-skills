@@ -1,6 +1,7 @@
 ---
 name: atomic-design
 description: Create or update web UI components with a strict reuse-first workflow. Use when building, refactoring, restyling, or extending frontend or template components while minimizing raw DOM or HTML by reusing or generalizing existing components first.
+effort: high
 ---
 
 # Build Web Components

@@ -1,6 +1,7 @@
 ---
 name: domain-entity-discovery
 description: Identify which domain entities are needed to represent a business domain before implementing them. Use when an agent receives a task that requires modeling a new domain area or extending an existing one — such as implementing a new feature, module, or end-to-end flow — and the domain entities involved are not yet defined in the codebase. The agent must extract domain concepts from the requirements, propose a set of domain entities with their relationships, validate the proposal with the human, and document the agreed model before proceeding to implementation.
+effort: max
 ---
 
 # Domain Entity Discovery

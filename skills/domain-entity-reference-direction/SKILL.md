@@ -1,6 +1,7 @@
 ---
 name: domain-entity-reference-direction
 description: Determine whether a domain entity should hold a reference to another domain entity and in which direction. Use when an agent needs to create, modify, review, or interpret a domain entity that relates to another domain entity. A domain entity should only hold a reference to another entity if it needs that reference to enforce its own invariants or execute its own domain behavior. References that exist only to support read queries belong in the repository, not in the entity.
+effort: high
 ---
 
 # Domain Entity Reference Direction
