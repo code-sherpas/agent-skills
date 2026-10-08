@@ -8,4 +8,4 @@ Principles, patterns and conventions are **not** skills. They state what code mu
 
 ## Skills
 
-- [`diagnose-and-fix-tracked-errors`](skills/diagnose-and-fix-tracked-errors/SKILL.md) — turn an error surfaced by an error-tracking or observability tool into an evidence-backed root cause, and land the fix at the layer that owns the violated rule.
+- [`fix-error`](skills/fix-error/SKILL.md) — fix a reported error following the project's standards for resolving errors.
