@@ -9,3 +9,4 @@ Principles, patterns and conventions are **not** skills. They state what code mu
 ## Skills
 
 - [`fix-error`](skills/fix-error/SKILL.md) — fix a reported error following the project's standards for resolving errors.
+- [`build-prototype`](skills/build-prototype/SKILL.md) — build, extend or review an interactive prototype following the project's standards for state-coherent prototypes.
