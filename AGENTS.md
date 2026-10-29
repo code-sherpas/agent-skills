@@ -16,3 +16,17 @@ Before adding anything to `skills/`, decide which of the two it is. If it descri
 
 Follow the "Agent Skills" format when you are asked to, or need to, create skills that agents can understand.
 The official website is [https://agentskills.io/](https://agentskills.io/). Write skills in English unless instructed otherwise.
+
+## The `base@code-sherpas` plugin
+
+`.claude/settings.json` enables the `base` plugin of the [Code Sherpas Claude Code marketplace](https://github.com/code-sherpas/claude-code-plugins), which no repository copies. It brings the automated checks backing the [software development standards](https://github.com/code-sherpas/software-development-standards) and the Code Sherpas agent skills (`/base:fix-error`, `/base:build-prototype`, …) from [code-sherpas/agent-skills](https://github.com/code-sherpas/agent-skills), their single source of truth: change a skill there, never here.
+
+⚠️ **The repository's settings switch it on, but do not install it.** In an interactive session where it is not installed, `base` does not load, and there are no checks and no skills. Install it **once per machine**, switched off, so that only Code Sherpas repositories switch it on:
+
+```bash
+claude plugin marketplace add code-sherpas/claude-code-plugins
+claude plugin install base@code-sherpas --scope user
+claude plugin disable base@code-sherpas --scope user   # without this, it also runs outside Code Sherpas
+```
+
+If a session does not offer `/base:fix-error`, this step is missing.
