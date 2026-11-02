@@ -12,6 +12,7 @@ Principles, patterns and conventions are **not** skills. They state what code mu
 
 - [`fix-error`](skills/fix-error/SKILL.md) — fix a reported error following the project's standards for resolving errors.
 - [`refine`](skills/refine/SKILL.md) — refine a request into one task in the project's task tracker, following the project's standards for refining work.
+- [`to-increments`](skills/to-increments/SKILL.md) — split a refined task into increments of functionality usable in production, following the project's standards for splitting work into increments.
 - [`build-prototype`](skills/build-prototype/SKILL.md) — build, extend or review an interactive prototype following the project's standards for state-coherent prototypes.
 
 ## Contributing
