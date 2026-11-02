@@ -12,3 +12,7 @@ Principles, patterns and conventions are **not** skills. They state what code mu
 
 - [`fix-error`](skills/fix-error/SKILL.md) — fix a reported error following the project's standards for resolving errors.
 - [`build-prototype`](skills/build-prototype/SKILL.md) — build, extend or review an interactive prototype following the project's standards for state-coherent prototypes.
+
+## Contributing
+
+`main` changes only through the merge queue, as in alexandria-web-application: `gh pr merge <n>` puts a pull request in it, and the queue's build of the tree that will land must pass `quality_checks`. A push to a pull request runs nothing, so a green pull request means nothing has been checked yet. The build runs the Agent Skills specification check of [claude-code-plugins](https://github.com/code-sherpas/claude-code-plugins) (`plugins/base/skills.test.ts`) against this repository, the same check that gates bringing these skills into the `base` plugin.
