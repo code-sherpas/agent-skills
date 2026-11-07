@@ -11,6 +11,7 @@ Principles, patterns and conventions are **not** skills. They state what code mu
 ## Skills
 
 - [`fix-error`](skills/fix-error/SKILL.md) — fix a reported error following the project's standards for resolving errors.
+- [`audit`](skills/audit/SKILL.md) — audit an existing area of a product against every standard that applies, leaving the findings in one task for refining, following the project's standards for auditing a product area.
 - [`refine`](skills/refine/SKILL.md) — refine a request into one task in the project's task tracker, following the project's standards for refining work.
 - [`to-increments`](skills/to-increments/SKILL.md) — split a refined task into increments of functionality usable in production, following the project's standards for splitting work into increments.
 - [`ship-increments`](skills/ship-increments/SKILL.md) — ship a split task's increments one at a time, following the project's standards for shipping increments.
